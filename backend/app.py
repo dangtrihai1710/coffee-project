@@ -19,7 +19,7 @@ except Exception as e:
     print(f"Error loading model_coffee: {e}")
 
 # 2) Model 2: Phân loại bệnh lá cà phê sử dụng file vừa train: coffee_resnet50_model_final.keras
-MODEL_DISEASE_PATH = "coffee_resnet50_model_final.keras"
+MODEL_DISEASE_PATH = "coffee_resnet50_model_final.h5"
 LABELS_DISEASE = [
     "Cây khoẻ (không bệnh)",
     "Bệnh miner",
