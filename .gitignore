@@ -1,0 +1,18 @@
+# Node modules
+node_modules/
+**/node_modules/
+
+# Expo
+.expo/
+**/.expo/
+
+# Virtual Environment
+.venv/
+**/.venv/
+**/venv/
+**/*.keras
+**/*.h5
+# Ignore large model files
+backend/coffee_resnet50_model_final.keras
+# Ignore large model files
+backend/coffee_vs_notcoffee.h5git commit -m "Remove large model files from tracking"
