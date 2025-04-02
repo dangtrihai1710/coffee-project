@@ -17,15 +17,20 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { FontAwesome5, MaterialIcons, Ionicons, FontAwesome } from '@expo/vector-icons';
+import * as ImageManipulator from 'expo-image-manipulator'; // Cần cài thêm thư viện này
 
 const { width, height } = Dimensions.get('window');
 
 const CaptureCamera = () => {
   const [imageUri, setImageUri] = useState(null);
+  const [originalImageUri, setOriginalImageUri] = useState(null); // Lưu trữ ảnh gốc
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [activeTab, setActiveTab] = useState('scan');
   const [showImageOptions, setShowImageOptions] = useState(false);
+  const [showCropOptions, setShowCropOptions] = useState(false);
+  const [cropMode, setCropMode] = useState('auto'); // 'auto', 'full', 'custom'
+  const [isCropping, setIsCropping] = useState(false);
   
   // Ref để quản lý scroll
   const scrollViewRef = useRef(null);
@@ -57,14 +62,19 @@ const CaptureCamera = () => {
     const res = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 1,
-      allowsEditing: true,
+      allowsEditing: false, // Tắt tính năng cắt mặc định
       aspect: [4, 3]
     });
     if (!res.canceled) {
       // In the newer API, the result is in res.assets array
       const asset = res.assets ? res.assets[0] : res;
+      
+      // Lưu ảnh gốc
+      setOriginalImageUri(asset.uri);
+      
+      // Hiển thị tùy chọn cắt ảnh
       setImageUri(asset.uri);
-      // Không reset kết quả ở đây để người dùng có thể xem lại kết quả trước
+      setShowCropOptions(true);
       
       // Cuộn xuống ảnh được chụp
       setTimeout(() => {
@@ -87,13 +97,18 @@ const CaptureCamera = () => {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 1,
-      allowsEditing: true,
+      allowsEditing: false, // Tắt tính năng cắt mặc định
       aspect: [4, 3]
     });
     if (!res.canceled) {
       const asset = res.assets ? res.assets[0] : res;
+      
+      // Lưu ảnh gốc
+      setOriginalImageUri(asset.uri);
+      
+      // Hiển thị tùy chọn cắt ảnh
       setImageUri(asset.uri);
-      // Không reset kết quả ở đây để người dùng có thể xem lại kết quả trước
+      setShowCropOptions(true);
       
       // Cuộn xuống ảnh được chọn
       setTimeout(() => {
@@ -102,6 +117,59 @@ const CaptureCamera = () => {
           animated: true
         });
       }, 100);
+    }
+  };
+
+  // Xử lý cắt ảnh
+  const handleCropImage = async (mode) => {
+    if (!originalImageUri) return;
+    
+    setIsCropping(true);
+    setCropMode(mode);
+    
+    try {
+      let croppedImage;
+      
+      if (mode === 'full') {
+        // Sử dụng ảnh gốc không cắt
+        setImageUri(originalImageUri);
+      } 
+      else if (mode === 'auto') {
+        // Cắt tự động với tỷ lệ 4:3
+        croppedImage = await ImageManipulator.manipulateAsync(
+          originalImageUri,
+          [{ crop: { originX: 0, originY: 0, width: 800, height: 600 } }],
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        setImageUri(croppedImage.uri);
+      }
+      else {
+        // Custom crop - sử dụng ImageManipulator bên trong ứng dụng
+        // Trong trường hợp này, sử dụng ImagePicker với allowsEditing = true
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 1,
+          uri: originalImageUri
+        });
+        
+        if (!result.canceled) {
+          const asset = result.assets ? result.assets[0] : result;
+          setImageUri(asset.uri);
+        } else {
+          // Nếu người dùng hủy, giữ lại ảnh gốc
+          setImageUri(originalImageUri);
+        }
+      }
+    } catch (error) {
+      console.error('Lỗi khi cắt ảnh:', error);
+      Alert.alert('Lỗi', 'Không thể cắt ảnh. Vui lòng thử lại.');
+      // Sử dụng ảnh gốc trong trường hợp lỗi
+      setImageUri(originalImageUri);
+    } finally {
+      setShowCropOptions(false);
+      setIsCropping(false);
     }
   };
 
@@ -542,6 +610,86 @@ const CaptureCamera = () => {
       </Modal>
     );
   };
+  
+  // Modal lựa chọn cách cắt ảnh
+  const renderCropOptionsModal = () => {
+    return (
+      <Modal
+        visible={showCropOptions}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCropOptions(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            // Nếu đang trong quá trình cắt, không cho phép đóng modal
+            if (!isCropping) setShowCropOptions(false);
+          }}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Chọn kiểu cắt ảnh</Text>
+            
+            {isCropping ? (
+              <View style={styles.cropLoadingContainer}>
+                <ActivityIndicator size="large" color="#216520" />
+                <Text style={styles.cropLoadingText}>Đang xử lý ảnh...</Text>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity 
+                  style={styles.cropOptionCard} 
+                  onPress={() => handleCropImage('auto')}
+                >
+                  <View style={styles.cropOptionIcon}>
+                    <FontAwesome5 name="crop-alt" size={24} color="#216520" />
+                  </View>
+                  <View style={styles.cropOptionContent}>
+                    <Text style={styles.cropOptionTitle}>Cắt tự động</Text>
+                    <Text style={styles.cropOptionDesc}>Cắt ảnh với tỷ lệ chuẩn 4:3 cho nhận diện tốt nhất</Text>
+                  </View>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.cropOptionCard} 
+                  onPress={() => handleCropImage('custom')}
+                >
+                  <View style={styles.cropOptionIcon}>
+                    <FontAwesome5 name="edit" size={24} color="#3949ab" />
+                  </View>
+                  <View style={styles.cropOptionContent}>
+                    <Text style={styles.cropOptionTitle}>Cắt tùy chỉnh</Text>
+                    <Text style={styles.cropOptionDesc}>Tự chọn vùng cần phân tích trên ảnh</Text>
+                  </View>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.cropOptionCard} 
+                  onPress={() => handleCropImage('full')}
+                >
+                  <View style={styles.cropOptionIcon}>
+                    <FontAwesome5 name="expand" size={24} color="#6c757d" />
+                  </View>
+                  <View style={styles.cropOptionContent}>
+                    <Text style={styles.cropOptionTitle}>Sử dụng ảnh gốc</Text>
+                    <Text style={styles.cropOptionDesc}>Dùng toàn bộ ảnh mà không cắt</Text>
+                  </View>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowCropOptions(false)}
+                >
+                  <Text style={styles.modalCancelText}>Hủy</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -564,6 +712,9 @@ const CaptureCamera = () => {
       
       {/* Modal lựa chọn ảnh */}
       {renderImageOptionsModal()}
+      
+{/* Modal lựa chọn cách cắt ảnh */}
+{renderCropOptionsModal()}
       
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -1061,6 +1212,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     fontWeight: '500',
+  },
+  // Style cho crop options
+  cropOptionCard: {
+    flexDirection: 'row',
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  cropOptionIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+  },
+  cropOptionContent: {
+    flex: 1,
+  },
+  cropOptionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  cropOptionDesc: {
+    fontSize: 14,
+    color: '#666',
+  },
+  cropLoadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  cropLoadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#216520',
   },
   // Các style cho Bottom Navigation
   bottomNav: {
