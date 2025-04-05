@@ -1,7 +1,7 @@
 // App.js
 import React from 'react';
 import { SafeAreaView, StyleSheet } from 'react-native';
-import CaptureCamera from './CaptureCamera';
+import CaptureCamera from './components/CaptureCamera'; // Đường dẫn đã được cập nhật
 
 export default function App() {
   return (
