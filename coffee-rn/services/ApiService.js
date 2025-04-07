@@ -1,7 +1,7 @@
 // services/ApiService.js
 
 // Thay đổi API_URL theo địa chỉ máy chủ của bạn
-const API_URL = 'http://192.168.1.10:5000'; 
+const API_URL = 'http://192.168.1.6:5000'; 
 
 class ApiService {
   // Gửi ảnh lá cây để phân tích
