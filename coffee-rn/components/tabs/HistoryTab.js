@@ -93,6 +93,7 @@ const HistoryTab = ({
           backgroundColor: item.result.includes('khoẻ') ? COLORS.successLight : COLORS.dangerLight
         }
       ]}
+      onPress={() => onViewScan(item)}
     >
       {item.image && (
         <Image 
@@ -147,9 +148,9 @@ const HistoryTab = ({
     </TouchableOpacity>
   );
 
-  return (
-    <View style={styles.container}>
-      {/* Header thống kê */}
+  // Render header cho FlatList
+  const ListHeader = () => (
+    <>
       <View style={styles.statsSummaryContainer}>
         <View style={styles.statsCard}>
           <Text style={styles.statsNumber}>{historyStats.totalScans || 0}</Text>
@@ -171,7 +172,6 @@ const HistoryTab = ({
         </View>
       </View>
       
-      {/* Filter options */}
       <View style={styles.filterContainer}>
         <TouchableOpacity style={styles.filterButton}>
           <FontAwesome5 name="filter" size={14} color={COLORS.primary} />
@@ -194,43 +194,49 @@ const HistoryTab = ({
         </TouchableOpacity>
       </View>
       
-      {/* History list */}
-      <View style={styles.historyListContainer}>
-        <Text style={styles.sectionTitle}>Lịch sử quét</Text>
-        
-        <FlatList
-          data={scanHistory}
-          renderItem={renderHistoryItem}
-          keyExtractor={item => item.id}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>Không có dữ liệu</Text>
-          }
-        />
-      </View>
+      <Text style={styles.sectionTitle}>Lịch sử quét</Text>
+    </>
+  );
+
+  // Render footer cho FlatList
+  const ListFooter = () => (
+    <View style={styles.exportContainer}>
+      <TouchableOpacity 
+        style={styles.exportButton}
+        onPress={() => {
+          Alert.alert('Thông báo', 'Tính năng xuất báo cáo sẽ được phát triển trong phiên bản tiếp theo.');
+        }}
+      >
+        <FontAwesome5 name="file-export" size={14} color={COLORS.white} />
+        <Text style={styles.exportButtonText}>Xuất báo cáo</Text>
+      </TouchableOpacity>
       
-      {/* Export options */}
-      <View style={styles.exportContainer}>
+      {scanHistory.length > 0 && (
         <TouchableOpacity 
-          style={styles.exportButton}
-          onPress={() => {
-            Alert.alert('Thông báo', 'Tính năng xuất báo cáo sẽ được phát triển trong phiên bản tiếp theo.');
-          }}
+          style={[styles.exportButton, { backgroundColor: COLORS.danger, marginTop: 10 }]}
+          onPress={handleDeleteAll}
         >
-          <FontAwesome5 name="file-export" size={14} color={COLORS.white} />
-          <Text style={styles.exportButtonText}>Xuất báo cáo</Text>
+          <FontAwesome5 name="trash" size={14} color={COLORS.white} />
+          <Text style={styles.exportButtonText}>Xóa toàn bộ lịch sử</Text>
         </TouchableOpacity>
-        
-        {scanHistory.length > 0 && (
-          <TouchableOpacity 
-            style={[styles.exportButton, { backgroundColor: COLORS.danger, marginTop: 10 }]}
-            onPress={handleDeleteAll}
-          >
-            <FontAwesome5 name="trash" size={14} color={COLORS.white} />
-            <Text style={styles.exportButtonText}>Xóa toàn bộ lịch sử</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      )}
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={scanHistory}
+        renderItem={renderHistoryItem}
+        keyExtractor={item => item.id}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>Không có dữ liệu</Text>
+        }
+        ListFooterComponent={ListFooter}
+        contentContainerStyle={styles.listContentContainer}
+      />
     </View>
   );
 };
@@ -240,6 +246,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.grayLight,
     padding: 15,
+  },
+  listContentContainer: {
+    paddingBottom: 20, // Thêm padding dưới cùng cho FlatList
   },
   emptyText: {
     textAlign: 'center',
@@ -303,24 +312,13 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginLeft: 4,
   },
-  historyListContainer: {
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    flex: 1,
-  },
   historyItem: {
     flexDirection: 'row',
     borderLeftWidth: 4,
     borderRadius: 8,
     padding: 10,
     marginBottom: 10,
+    backgroundColor: COLORS.white,
   },
   historyItemImage: {
     width: 60,

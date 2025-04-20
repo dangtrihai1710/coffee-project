@@ -158,39 +158,67 @@ const ScanTab = ({ scrollViewRef, scanHistory, historyStats, onScanComplete, onV
     }
   };
 
-  // Upload the image to API for prediction
-  const uploadImage = async () => {
-    if (!imageUri) return;
-    setLoading(true);
-    setResult(null);
+// Upload the image to API for prediction
+const uploadImage = async () => {
+  if (!imageUri) return;
+  setLoading(true);
+  setResult(null);
+  
+  try {
+    const json = await ApiService.analyzeLeafImage(imageUri);
+    setResult(json);
     
-    try {
-      const json = await ApiService.analyzeLeafImage(imageUri);
-      setResult(json);
-      
-      // Thêm kết quả vào lịch sử nếu không có lỗi
-      if (!json.error && onScanComplete) {
-        onScanComplete(json, imageUri);
-      }
-      
-      // Cuộn xuống kết quả
-      setTimeout(() => {
-        scrollViewRef?.current?.scrollTo({
-          y: 500,
-          animated: true
-        });
-      }, 300);
-      
-    } catch (error) {
-      console.error('Upload error:', error);
-      Alert.alert('Lỗi', 'Không thể gửi ảnh lên server. Vui lòng kiểm tra kết nối mạng.');
-      setResult({
-        error: 'Không thể kết nối với server. Vui lòng thử lại sau.'
-      });
-    } finally {
-      setLoading(false);
+    // Thêm kết quả vào lịch sử nếu không có lỗi
+    if (!json.error && onScanComplete) {
+      onScanComplete(json, imageUri);
     }
-  };
+    
+    // Cuộn xuống kết quả
+    setTimeout(() => {
+      scrollViewRef?.current?.scrollTo({
+        y: 500,
+        animated: true
+      });
+    }, 300);
+    
+  } catch (error) {
+    console.error('Upload error:', error);
+    let errorMessage = 'Không thể gửi ảnh lên server. Vui lòng kiểm tra kết nối mạng.';
+    
+    // Kiểm tra lỗi kết nối cụ thể
+    if (error.message && error.message.includes('Network request failed')) {
+      errorMessage = 'Không thể kết nối đến server. Kiểm tra xem server có đang hoạt động không.';
+    } else if (!ApiService.isInitialized) {
+      errorMessage = 'Chưa tìm thấy server. Hãy đảm bảo điện thoại và máy tính kết nối cùng mạng.';
+    }
+    
+    Alert.alert('Lỗi kết nối', errorMessage, [
+      { 
+        text: 'Thử tìm server', 
+        onPress: async () => {
+          Alert.alert('Đang tìm server...', 'Vui lòng đợi trong giây lát.');
+          try {
+            const apiUrl = await ApiService.initialize(true); // Bắt buộc tìm lại
+            if (apiUrl) {
+              Alert.alert('Thành công', `Đã kết nối đến server: ${apiUrl}. Hãy thử quét lại.`);
+            } else {
+              Alert.alert('Không tìm thấy', 'Không thể tìm thấy server. Hãy đảm bảo server đang chạy và kết nối cùng mạng.');
+            }
+          } catch (e) {
+            Alert.alert('Lỗi', 'Không thể tìm kiếm server: ' + e.message);
+          }
+        } 
+      },
+      { text: 'Đóng' }
+    ]);
+    
+    setResult({
+      error: errorMessage
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Xử lý các action của kết quả
   const handleSaveResult = () => {
