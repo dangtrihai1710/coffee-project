@@ -148,8 +148,8 @@ const HistoryTab = ({
     </TouchableOpacity>
   );
 
-  // Render header cho FlatList
-  const ListHeader = () => (
+  // Header cho FlatList hiển thị thống kê
+  const renderHeader = () => (
     <>
       <View style={styles.statsSummaryContainer}>
         <View style={styles.statsCard}>
@@ -198,8 +198,8 @@ const HistoryTab = ({
     </>
   );
 
-  // Render footer cho FlatList
-  const ListFooter = () => (
+  // Footer cho FlatList hiển thị các nút hành động
+  const renderFooter = () => (
     <View style={styles.exportContainer}>
       <TouchableOpacity 
         style={styles.exportButton}
@@ -230,11 +230,8 @@ const HistoryTab = ({
         renderItem={renderHistoryItem}
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={ListHeader}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>Không có dữ liệu</Text>
-        }
-        ListFooterComponent={ListFooter}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
         contentContainerStyle={styles.listContentContainer}
       />
     </View>

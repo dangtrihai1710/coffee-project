@@ -1,11 +1,11 @@
 // components/tabs/ScanTab.js
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
   Image, 
   StyleSheet,
-
+  ScrollView,
   TouchableOpacity, 
   Alert
 } from 'react-native';
@@ -26,7 +26,7 @@ import ApiService from '../../services/ApiService';
 import COLORS from '../../styles/colors';
 import commonStyles from '../../styles/commonStyles';
 
-const ScanTab = ({ scrollViewRef, scanHistory, historyStats, onScanComplete, onViewAllHistory }) => {
+const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAllHistory }) => {
   const [imageUri, setImageUri] = useState(null);
   const [originalImageUri, setOriginalImageUri] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -34,6 +34,9 @@ const ScanTab = ({ scrollViewRef, scanHistory, historyStats, onScanComplete, onV
   const [showImageOptions, setShowImageOptions] = useState(false);
   const [showCropOptions, setShowCropOptions] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
+  
+  // Ref cho ScrollView
+  const scrollViewRef = useRef(null);
 
   // Chọn ảnh mới - Reset kết quả và hiển thị modal chọn ảnh
   const selectNewImage = () => {
@@ -158,67 +161,67 @@ const ScanTab = ({ scrollViewRef, scanHistory, historyStats, onScanComplete, onV
     }
   };
 
-// Upload the image to API for prediction
-const uploadImage = async () => {
-  if (!imageUri) return;
-  setLoading(true);
-  setResult(null);
-  
-  try {
-    const json = await ApiService.analyzeLeafImage(imageUri);
-    setResult(json);
+  // Upload the image to API for prediction
+  const uploadImage = async () => {
+    if (!imageUri) return;
+    setLoading(true);
+    setResult(null);
     
-    // Thêm kết quả vào lịch sử nếu không có lỗi
-    if (!json.error && onScanComplete) {
-      onScanComplete(json, imageUri);
-    }
-    
-    // Cuộn xuống kết quả
-    setTimeout(() => {
-      scrollViewRef?.current?.scrollTo({
-        y: 500,
-        animated: true
-      });
-    }, 300);
-    
-  } catch (error) {
-    console.error('Upload error:', error);
-    let errorMessage = 'Không thể gửi ảnh lên server. Vui lòng kiểm tra kết nối mạng.';
-    
-    // Kiểm tra lỗi kết nối cụ thể
-    if (error.message && error.message.includes('Network request failed')) {
-      errorMessage = 'Không thể kết nối đến server. Kiểm tra xem server có đang hoạt động không.';
-    } else if (!ApiService.isInitialized) {
-      errorMessage = 'Chưa tìm thấy server. Hãy đảm bảo điện thoại và máy tính kết nối cùng mạng.';
-    }
-    
-    Alert.alert('Lỗi kết nối', errorMessage, [
-      { 
-        text: 'Thử tìm server', 
-        onPress: async () => {
-          Alert.alert('Đang tìm server...', 'Vui lòng đợi trong giây lát.');
-          try {
-            const apiUrl = await ApiService.initialize(true); // Bắt buộc tìm lại
-            if (apiUrl) {
-              Alert.alert('Thành công', `Đã kết nối đến server: ${apiUrl}. Hãy thử quét lại.`);
-            } else {
-              Alert.alert('Không tìm thấy', 'Không thể tìm thấy server. Hãy đảm bảo server đang chạy và kết nối cùng mạng.');
+    try {
+      const json = await ApiService.analyzeLeafImage(imageUri);
+      setResult(json);
+      
+      // Thêm kết quả vào lịch sử nếu không có lỗi
+      if (!json.error && onScanComplete) {
+        onScanComplete(json, imageUri);
+      }
+      
+      // Cuộn xuống kết quả
+      setTimeout(() => {
+        scrollViewRef?.current?.scrollTo({
+          y: 500,
+          animated: true
+        });
+      }, 300);
+      
+    } catch (error) {
+      console.error('Upload error:', error);
+      let errorMessage = 'Không thể gửi ảnh lên server. Vui lòng kiểm tra kết nối mạng.';
+      
+      // Kiểm tra lỗi kết nối cụ thể
+      if (error.message && error.message.includes('Network request failed')) {
+        errorMessage = 'Không thể kết nối đến server. Kiểm tra xem server có đang hoạt động không.';
+      } else if (!ApiService.isInitialized) {
+        errorMessage = 'Chưa tìm thấy server. Hãy đảm bảo điện thoại và máy tính kết nối cùng mạng.';
+      }
+      
+      Alert.alert('Lỗi kết nối', errorMessage, [
+        { 
+          text: 'Thử tìm server', 
+          onPress: async () => {
+            Alert.alert('Đang tìm server...', 'Vui lòng đợi trong giây lát.');
+            try {
+              const apiUrl = await ApiService.initialize(true); // Bắt buộc tìm lại
+              if (apiUrl) {
+                Alert.alert('Thành công', `Đã kết nối đến server: ${apiUrl}. Hãy thử quét lại.`);
+              } else {
+                Alert.alert('Không tìm thấy', 'Không thể tìm thấy server. Hãy đảm bảo server đang chạy và kết nối cùng mạng.');
+              }
+            } catch (e) {
+              Alert.alert('Lỗi', 'Không thể tìm kiếm server: ' + e.message);
             }
-          } catch (e) {
-            Alert.alert('Lỗi', 'Không thể tìm kiếm server: ' + e.message);
-          }
-        } 
-      },
-      { text: 'Đóng' }
-    ]);
-    
-    setResult({
-      error: errorMessage
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+          } 
+        },
+        { text: 'Đóng' }
+      ]);
+      
+      setResult({
+        error: errorMessage
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Xử lý các action của kết quả
   const handleSaveResult = () => {
@@ -234,7 +237,12 @@ const uploadImage = async () => {
   };
 
   return (
-    <View style={styles.contentContainer}>
+    <ScrollView 
+      ref={scrollViewRef}
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={true}
+    >
       <View style={styles.imageSelectionCard}>
         <Text style={styles.sectionTitle}>Phân tích lá cà phê</Text>
         
@@ -417,13 +425,18 @@ const uploadImage = async () => {
         onCropImage={handleCropImage}
         isCropping={isCropping}
       />
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.grayLight,
+  },
   contentContainer: {
     padding: 15,
+    paddingBottom: 20,
   },
   imageSelectionCard: {
     backgroundColor: COLORS.white,

@@ -1,8 +1,7 @@
 // components/CaptureCamera.js
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
-  ScrollView, 
   SafeAreaView, 
   StatusBar,
   StyleSheet,
@@ -38,9 +37,6 @@ const CaptureCamera = () => {
     diseases: {}
   });
   
-  // Ref để quản lý scroll
-  const scrollViewRef = useRef(null);
-
   // UseEffect để tải lịch sử quét khi component mount và khi chuyển tab
   useEffect(() => {
     if (activeTab === 'history') {
@@ -138,7 +134,6 @@ const CaptureCamera = () => {
       case 'scan':
         return (
           <ScanTab 
-            scrollViewRef={scrollViewRef} 
             scanHistory={scanHistory} 
             historyStats={historyStats}
             onScanComplete={addScanToHistory}
@@ -180,14 +175,10 @@ const CaptureCamera = () => {
         <Text style={styles.headerSubtitle}>Hệ thống chẩn đoán bệnh cây cà phê</Text>
       </View>
       
-      {/* Main Content */}
-      <ScrollView 
-        ref={scrollViewRef}
-        contentContainerStyle={styles.scrollViewContent}
-        showsVerticalScrollIndicator={true}
-      >
+      {/* Main Content - Không còn bọc trong ScrollView */}
+      <View style={styles.mainContent}>
         {renderMainContent()}
-      </ScrollView>
+      </View>
       
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -294,9 +285,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#ddf5dd',
   },
-  scrollViewContent: {
-    flexGrow: 1,
-    paddingBottom: 20,
+  mainContent: {
+    flex: 1, // Chiếm toàn bộ không gian còn lại
   },
   // Các style cho Bottom Navigation
   bottomNav: {

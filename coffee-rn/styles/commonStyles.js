@@ -10,6 +10,10 @@ const commonStyles = StyleSheet.create({
   },
   contentContainer: {
     padding: 15,
+    paddingBottom: 20, // Thêm padding dưới để tránh nội dung bị che khuất bởi bottom navigation
+  },
+  scrollView: {
+    flex: 1,
   },
   card: {
     backgroundColor: COLORS.white,
