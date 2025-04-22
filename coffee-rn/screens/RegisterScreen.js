@@ -83,15 +83,35 @@ const RegisterScreen = ({ onRegisterSuccess, onBack }) => {
         phone,
         password
       };
-
-      await AuthService.register(userData);
+  
+      console.log('Đang đăng ký với thông tin:', userData);
       
-      Alert.alert(
-        'Đăng ký thành công',
-        'Tài khoản của bạn đã được tạo thành công!',
-        [{ text: 'OK', onPress: onRegisterSuccess }]
-      );
+      try {
+        const result = await AuthService.register(userData);
+        console.log('Kết quả đăng ký:', result);
+        
+        Alert.alert(
+          'Đăng ký thành công',
+          'Tài khoản của bạn đã được tạo thành công!',
+          [{ text: 'OK', onPress: onRegisterSuccess }]
+        );
+      } catch (error) {
+        if (error.message && error.message.includes('JSON')) {
+          // Lỗi JSON parse, sử dụng chế độ offline
+          console.log('Chuyển sang chế độ đăng ký offline do lỗi kết nối');
+          
+          await AuthService.registerOffline(userData);
+          Alert.alert(
+            'Đăng ký thành công (Offline)',
+            'Tài khoản đã được tạo trong chế độ offline!',
+            [{ text: 'OK', onPress: onRegisterSuccess }]
+          );
+        } else {
+          throw error; // Ném lỗi khác để xử lý bên ngoài
+        }
+      }
     } catch (error) {
+      console.error('Lỗi đăng ký chi tiết:', error);
       Alert.alert('Đăng ký thất bại', error.message || 'Không thể đăng ký. Vui lòng thử lại sau.');
     } finally {
       setIsLoading(false);

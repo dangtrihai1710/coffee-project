@@ -24,23 +24,48 @@ const AuthWrapper = () => {
 
   const checkAuthStatus = async () => {
     try {
-      const isLoggedIn = await AuthService.initialize();
-      setIsAuthenticated(isLoggedIn);
+      // Kiểm tra trạng thái từ AsyncStorage trước
+      const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+      
+      if (token && userData) {
+        // Parse userData và cập nhật cho AuthService
+        const user = JSON.parse(userData);
+        AuthService.isAuthenticated = true;
+        AuthService.currentUser = user;
+        setIsAuthenticated(true);
+      } else {
+        // Thử phương thức initialize của AuthService
+        const isLoggedIn = await AuthService.initialize();
+        setIsAuthenticated(isLoggedIn);
+      }
     } catch (error) {
       console.error('Lỗi kiểm tra trạng thái đăng nhập:', error);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleLoginSuccess = () => {
+    console.log('Đăng nhập thành công, cập nhật trạng thái đăng nhập');
     setIsAuthenticated(true);
   };
 
-  const handleLogout = () => {
+// Xử lý lỗi đăng xuất
+const handleLogout = async () => {
+  setIsLoading(true);
+  try {
+    await AuthService.logout();
     setIsAuthenticated(false);
     setCurrentScreen('login');
-  };
+  } catch (error) {
+    console.error('Lỗi đăng xuất:', error);
+    Alert.alert('Lỗi', 'Không thể đăng xuất. Vui lòng thử lại.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const navigateToRegister = () => {
     setCurrentScreen('register');
