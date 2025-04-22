@@ -1,11 +1,11 @@
 // App.js
 import React, { useEffect } from 'react';
 import { SafeAreaView, StyleSheet } from 'react-native';
-import CaptureCamera from './components/CaptureCamera';
-import ApiService from './services/ApiService'; // Thêm dòng này
+import AuthWrapper from './components/AuthWrapper';
+import ApiService from './services/ApiService';
 
 export default function App() {
-  // Thêm useEffect để khởi tạo ApiService khi app khởi động
+  // Khởi tạo ApiService khi app khởi động
   useEffect(() => {
     const initializeApi = async () => {
       try {
@@ -21,11 +21,14 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <CaptureCamera />
+      <AuthWrapper />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { 
+    flex: 1,
+    backgroundColor: '#fff'
+  },
 });

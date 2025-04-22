@@ -18,16 +18,18 @@ import HistoryTab from './tabs/HistoryTab';
 import MapTab from './tabs/MapTab';
 import TreatmentTab from './tabs/TreatmentTab';
 import HelpTab from './tabs/HelpTab';
+import ProfileScreen from '../screens/ProfileScreen';
 
 // Services
 import StorageService from '../services/StorageService';
+import AuthService from '../services/AuthService';
 
 // Styles
 import COLORS from '../styles/colors';
 
 const { width, height } = Dimensions.get('window');
 
-const CaptureCamera = () => {
+const CaptureCamera = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('scan');
   const [scanHistory, setScanHistory] = useState([]);
   const [historyStats, setHistoryStats] = useState({
@@ -36,6 +38,19 @@ const CaptureCamera = () => {
     diseasedTrees: 0,
     diseases: {}
   });
+  const [userName, setUserName] = useState('');
+  
+  // Lấy thông tin người dùng khi component mount
+  useEffect(() => {
+    const getUserInfo = async () => {
+      const userData = await AuthService.getUserData();
+      if (userData && userData.fullName) {
+        setUserName(userData.fullName);
+      }
+    };
+    
+    getUserInfo();
+  }, []);
   
   // UseEffect để tải lịch sử quét khi component mount và khi chuyển tab
   useEffect(() => {
@@ -158,6 +173,8 @@ const CaptureCamera = () => {
         return <MapTab />;
       case 'treatment':
         return <TreatmentTab />;
+      case 'profile':
+        return <ProfileScreen onLogout={onLogout} />;
       case 'help':
         return <HelpTab />;
       default:
@@ -171,8 +188,22 @@ const CaptureCamera = () => {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Coffee Care</Text>
-        <Text style={styles.headerSubtitle}>Hệ thống chẩn đoán bệnh cây cà phê</Text>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.headerTitle}>Coffee Care</Text>
+            <Text style={styles.headerSubtitle}>Hệ thống chẩn đoán bệnh cây cà phê</Text>
+          </View>
+          {userName && (
+            <TouchableOpacity 
+              style={styles.userButton}
+              onPress={() => setActiveTab('profile')}
+            >
+              <View style={styles.userAvatar}>
+                <Text style={styles.userAvatarText}>{userName.charAt(0).toUpperCase()}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       
       {/* Main Content - Không còn bọc trong ScrollView */}
@@ -244,17 +275,17 @@ const CaptureCamera = () => {
         
         <TouchableOpacity 
           style={styles.navItem} 
-          onPress={() => setActiveTab('help')}
+          onPress={() => setActiveTab('profile')}
         >
           <FontAwesome5 
-            name="question-circle" 
+            name="user" 
             size={20} 
-            color={activeTab === 'help' ? COLORS.primary : COLORS.textMuted} 
+            color={activeTab === 'profile' ? COLORS.primary : COLORS.textMuted} 
           />
           <Text style={[
             styles.navText, 
-            {color: activeTab === 'help' ? COLORS.primary : COLORS.textMuted}
-          ]}>Trợ giúp</Text>
+            {color: activeTab === 'profile' ? COLORS.primary : COLORS.textMuted}
+          ]}>Hồ sơ</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -276,6 +307,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: 22,
     fontWeight: 'bold',
@@ -284,6 +320,22 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: '#ddf5dd',
+  },
+  userButton: {
+    padding: 4,
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarText: {
+    color: COLORS.primary,
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   mainContent: {
     flex: 1, // Chiếm toàn bộ không gian còn lại
