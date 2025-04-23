@@ -4,7 +4,7 @@ import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import COLORS from '../../styles/colors';
 
-const ImagePickerModal = ({ visible, onClose, onTakePhoto, onPickImage }) => {
+const ImagePickerModal = ({ visible, onClose, onTakePhoto, onPickImage, onPickMultipleImages }) => {
   return (
     <Modal
       visible={visible}
@@ -38,8 +38,19 @@ const ImagePickerModal = ({ visible, onClose, onTakePhoto, onPickImage }) => {
               onPickImage();
             }}
           >
+            <FontAwesome5 name="image" size={24} color={COLORS.primary} />
+            <Text style={styles.modalOptionText}>Chọn 1 ảnh từ thư viện</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.modalOption} 
+            onPress={() => {
+              onClose();
+              onPickMultipleImages();
+            }}
+          >
             <FontAwesome5 name="images" size={24} color={COLORS.primary} />
-            <Text style={styles.modalOptionText}>Chọn từ thư viện</Text>
+            <Text style={styles.modalOptionText}>Chọn nhiều ảnh từ thư viện</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 

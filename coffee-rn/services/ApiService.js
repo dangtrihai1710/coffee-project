@@ -198,82 +198,83 @@ class ApiService {
     }
   }
   
-  // Gửi ảnh lá cây để phân tích với xử lý lỗi tốt hơn
-  static async analyzeLeafImage(imageUri) {
-    try {
-      // Đảm bảo đã khởi tạo API URL
-      if (!this.isInitialized) {
-        const apiUrl = await this.initialize();
-        if (!apiUrl) {
-          throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
-        }
-      }
-      
-      const filename = imageUri.split('/').pop();
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
+// Phương thức analyzeLeafImage trong ApiService.js
 
-      const formData = new FormData();
-      formData.append('file', {
-        uri: imageUri,
-        name: filename,
-        type: type,
-      });
-
-      console.log(`[API] Gửi ảnh đến: ${this.apiUrl}/predict`);
-      
-      // Thêm xử lý timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 giây timeout cho upload ảnh
-      
-      try {
-        const response = await fetch(`${this.apiUrl}/predict`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          body: formData,
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          // Kiểm tra content type trước khi cố gắng đọc JSON
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-          } else {
-            // Đọc nội dung text để gỡ lỗi
-            const textContent = await response.text();
-            console.error("Nội dung phản hồi không phải JSON:", textContent.substring(0, 200));
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-        }
-        
-        // Kiểm tra content type trước khi parse JSON
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          // Nhận nội dung thô để gỡ lỗi
-          const textContent = await response.text();
-          console.error("Phản hồi không phải JSON:", textContent.substring(0, 200) + "...");
-          throw new Error("Server đã trả về định dạng không hợp lệ. API có thể đã thay đổi.");
-        }
-        
-        return await response.json();
-      } catch (fetchError) {
-        // Xử lý lỗi cụ thể khi gọi API
-        if (fetchError.name === 'AbortError') {
-          throw new Error('Quá thời gian phân tích ảnh. Vui lòng thử lại.');
-        }
-        throw fetchError;
+static async analyzeLeafImage(imageUri) {
+  try {
+    // Đảm bảo đã khởi tạo API URL
+    if (!this.isInitialized) {
+      const apiUrl = await this.initialize();
+      if (!apiUrl) {
+        throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
       }
-    } catch (error) {
-      console.error('Error analyzing leaf image:', error);
-      throw error;
     }
+    
+    const filename = imageUri.split('/').pop();
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri: imageUri,
+      name: filename,
+      type: type,
+    });
+
+    console.log(`[API] Gửi ảnh đến: ${this.apiUrl}/predict`);
+    
+    // Thêm xử lý timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 giây timeout cho upload ảnh
+    
+    try {
+      const response = await fetch(`${this.apiUrl}/predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        // Kiểm tra content type trước khi cố gắng đọc JSON
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        } else {
+          // Đọc nội dung text để gỡ lỗi
+          const textContent = await response.text();
+          console.error("Nội dung phản hồi không phải JSON:", textContent.substring(0, 200));
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      }
+      
+      // Kiểm tra content type trước khi parse JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        // Nhận nội dung thô để gỡ lỗi
+        const textContent = await response.text();
+        console.error("Phản hồi không phải JSON:", textContent.substring(0, 200) + "...");
+        throw new Error("Server đã trả về định dạng không hợp lệ. API có thể đã thay đổi.");
+      }
+      
+      return await response.json();
+    } catch (fetchError) {
+      // Xử lý lỗi cụ thể khi gọi API
+      if (fetchError.name === 'AbortError') {
+        throw new Error('Quá thời gian phân tích ảnh. Vui lòng thử lại.');
+      }
+      throw fetchError;
+    }
+  } catch (error) {
+    console.error('Error analyzing leaf image:', error);
+    throw error;
   }
+}
 
   // Gửi POST request có chứa JSON
   static async postJson(endpoint, data) {

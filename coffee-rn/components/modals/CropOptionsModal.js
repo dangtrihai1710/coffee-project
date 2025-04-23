@@ -24,7 +24,7 @@ const CropOptionsModal = ({ visible, onClose, onCropImage, isCropping }) => {
         }}
       >
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Chọn kiểu cắt ảnh</Text>
+          <Text style={styles.modalTitle}>Chọn kiểu xử lý ảnh</Text>
           
           {isCropping ? (
             <View style={styles.cropLoadingContainer}>
@@ -33,19 +33,6 @@ const CropOptionsModal = ({ visible, onClose, onCropImage, isCropping }) => {
             </View>
           ) : (
             <>
-              <TouchableOpacity 
-                style={styles.cropOptionCard} 
-                onPress={() => onCropImage('auto')}
-              >
-                <View style={styles.cropOptionIcon}>
-                  <FontAwesome5 name="crop-alt" size={24} color={COLORS.primary} />
-                </View>
-                <View style={styles.cropOptionContent}>
-                  <Text style={styles.cropOptionTitle}>Cắt tự động</Text>
-                  <Text style={styles.cropOptionDesc}>Cắt ảnh với tỷ lệ chuẩn 4:3 cho nhận diện tốt nhất</Text>
-                </View>
-              </TouchableOpacity>
-              
               <TouchableOpacity 
                 style={styles.cropOptionCard} 
                 onPress={() => onCropImage('custom')}

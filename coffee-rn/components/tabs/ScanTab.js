@@ -7,7 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity, 
-  Alert
+  Alert,
+  FlatList
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -27,10 +28,13 @@ import COLORS from '../../styles/colors';
 import commonStyles from '../../styles/commonStyles';
 
 const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAllHistory }) => {
-  const [imageUri, setImageUri] = useState(null);
+  const [imageUris, setImageUris] = useState([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [originalImageUri, setOriginalImageUri] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [processingQueue, setProcessingQueue] = useState([]); // Hàng đợi xử lý ảnh
+  const [processingIndex, setProcessingIndex] = useState(-1); // Chỉ số ảnh đang xử lý
+  const [results, setResults] = useState([]); // Mảng kết quả cho nhiều ảnh
   const [showImageOptions, setShowImageOptions] = useState(false);
   const [showCropOptions, setShowCropOptions] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
@@ -41,7 +45,8 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
   // Chọn ảnh mới - Reset kết quả và hiển thị modal chọn ảnh
   const selectNewImage = () => {
     setShowImageOptions(true);
-    setResult(null);
+    setResults([]);
+    setImageUris([]);
   };
 
   // Capture a photo using the device camera
@@ -64,7 +69,8 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
       setOriginalImageUri(asset.uri);
       
       // Hiển thị tùy chọn cắt ảnh
-      setImageUri(asset.uri);
+      setImageUris([asset.uri]);
+      setSelectedImageIndex(0);
       setShowCropOptions(true);
       
       // Cuộn xuống ảnh được chụp
@@ -77,7 +83,7 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
     }
   };
 
-  // Pick an image from the library
+  // Pick a single image from the library
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -97,7 +103,44 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
       setOriginalImageUri(asset.uri);
       
       // Hiển thị tùy chọn cắt ảnh
-      setImageUri(asset.uri);
+      setImageUris([asset.uri]);
+      setSelectedImageIndex(0);
+      setShowCropOptions(true);
+      
+      // Cuộn xuống ảnh được chọn
+      setTimeout(() => {
+        scrollViewRef?.current?.scrollTo({
+          y: 250,
+          animated: true
+        });
+      }, 100);
+    }
+  };
+  
+  // Pick multiple images from the library
+  const pickMultipleImages = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Quyền bị từ chối', 'Cần quyền truy cập thư viện ảnh');
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: 10 // Giới hạn số lượng ảnh có thể chọn
+    });
+    if (!res.canceled && res.assets && res.assets.length > 0) {
+      // Lấy danh sách URI từ các ảnh đã chọn
+      const uris = res.assets.map(asset => asset.uri);
+      
+      // Cập nhật state
+      setImageUris(uris);
+      setSelectedImageIndex(0);
+      setOriginalImageUri(uris[0]);
+      
+      // Hiển thị tùy chọn cắt ảnh cho ảnh đầu tiên
       setShowCropOptions(true);
       
       // Cuộn xuống ảnh được chọn
@@ -112,26 +155,18 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
 
   // Xử lý cắt ảnh
   const handleCropImage = async (mode) => {
-    if (!originalImageUri) return;
+    if (!imageUris || imageUris.length === 0) return;
     
     setIsCropping(true);
     
     try {
-      let croppedImage;
+      const currentImageUri = imageUris[selectedImageIndex];
+      let processedImageUri;
       
       if (mode === 'full') {
         // Sử dụng ảnh gốc không cắt
-        setImageUri(originalImageUri);
+        processedImageUri = currentImageUri;
       } 
-      else if (mode === 'auto') {
-        // Cắt tự động với tỷ lệ 4:3
-        croppedImage = await ImageManipulator.manipulateAsync(
-          originalImageUri,
-          [{ crop: { originX: 0, originY: 0, width: 800, height: 600 } }],
-          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-        );
-        setImageUri(croppedImage.uri);
-      }
       else {
         // Custom crop - sử dụng ImageManipulator bên trong ứng dụng
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -139,51 +174,94 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
           allowsEditing: true,
           aspect: [4, 3],
           quality: 1,
-          uri: originalImageUri
+          uri: currentImageUri
         });
         
         if (!result.canceled) {
           const asset = result.assets ? result.assets[0] : result;
-          setImageUri(asset.uri);
+          processedImageUri = asset.uri;
         } else {
           // Nếu người dùng hủy, giữ lại ảnh gốc
-          setImageUri(originalImageUri);
+          processedImageUri = currentImageUri;
         }
+      }
+      
+      // Cập nhật URI của ảnh hiện tại trong mảng
+      const newImageUris = [...imageUris];
+      newImageUris[selectedImageIndex] = processedImageUri;
+      setImageUris(newImageUris);
+      
+      // Nếu đây là ảnh cuối cùng trong chuỗi, thêm tất cả vào hàng đợi xử lý
+      if (selectedImageIndex === imageUris.length - 1) {
+        // Thêm tất cả ảnh vào hàng đợi xử lý
+        setProcessingQueue(newImageUris);
+        setProcessingIndex(0); // Bắt đầu xử lý từ ảnh đầu tiên
+      } else {
+        // Nếu không phải ảnh cuối, chuyển sang ảnh tiếp theo
+        setSelectedImageIndex(selectedImageIndex + 1);
+        setOriginalImageUri(imageUris[selectedImageIndex + 1]);
+        setShowCropOptions(true); // Hiển thị lại modal cắt cho ảnh tiếp theo
       }
     } catch (error) {
       console.error('Lỗi khi cắt ảnh:', error);
       Alert.alert('Lỗi', 'Không thể cắt ảnh. Vui lòng thử lại.');
-      // Sử dụng ảnh gốc trong trường hợp lỗi
-      setImageUri(originalImageUri);
     } finally {
-      setShowCropOptions(false);
       setIsCropping(false);
+      setShowCropOptions(false);
     }
   };
 
+  // Xử lý hàng đợi ảnh khi processingIndex hoặc processingQueue thay đổi
+  React.useEffect(() => {
+    const processImages = async () => {
+      if (processingQueue.length > 0 && processingIndex >= 0 && processingIndex < processingQueue.length) {
+        // Có ảnh cần xử lý
+        if (!loading) {
+          // Nếu không đang tải, bắt đầu xử lý ảnh hiện tại
+          await uploadImage(processingQueue[processingIndex], processingIndex);
+        }
+      }
+    };
+    
+    processImages();
+  }, [processingIndex, processingQueue]);
+
   // Upload the image to API for prediction
-  const uploadImage = async () => {
+  const uploadImage = async (imageUri, index) => {
     if (!imageUri) return;
+    
     setLoading(true);
-    setResult(null);
     
     try {
       const json = await ApiService.analyzeLeafImage(imageUri);
-      setResult(json);
+      
+      // Cập nhật kết quả cho ảnh hiện tại
+      const newResults = [...results];
+      newResults[index] = { ...json, imageUri };
+      setResults(newResults);
       
       // Thêm kết quả vào lịch sử nếu không có lỗi
       if (!json.error && onScanComplete) {
         onScanComplete(json, imageUri);
       }
       
-      // Cuộn xuống kết quả
-      setTimeout(() => {
-        scrollViewRef?.current?.scrollTo({
-          y: 500,
-          animated: true
-        });
-      }, 300);
-      
+      // Kiểm tra xem còn ảnh nào cần xử lý không
+      if (index < processingQueue.length - 1) {
+        // Chuyển sang ảnh tiếp theo
+        setProcessingIndex(index + 1);
+      } else {
+        // Đã xử lý xong tất cả ảnh
+        setProcessingIndex(-1);
+        setProcessingQueue([]);
+        
+        // Cuộn xuống kết quả
+        setTimeout(() => {
+          scrollViewRef?.current?.scrollTo({
+            y: 500,
+            animated: true
+          });
+        }, 300);
+      }
     } catch (error) {
       console.error('Upload error:', error);
       let errorMessage = 'Không thể gửi ảnh lên server. Vui lòng kiểm tra kết nối mạng.';
@@ -195,46 +273,53 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
         errorMessage = 'Chưa tìm thấy server. Hãy đảm bảo điện thoại và máy tính kết nối cùng mạng.';
       }
       
-      Alert.alert('Lỗi kết nối', errorMessage, [
-        { 
-          text: 'Thử tìm server', 
-          onPress: async () => {
-            Alert.alert('Đang tìm server...', 'Vui lòng đợi trong giây lát.');
-            try {
-              const apiUrl = await ApiService.initialize(true); // Bắt buộc tìm lại
-              if (apiUrl) {
-                Alert.alert('Thành công', `Đã kết nối đến server: ${apiUrl}. Hãy thử quét lại.`);
-              } else {
-                Alert.alert('Không tìm thấy', 'Không thể tìm thấy server. Hãy đảm bảo server đang chạy và kết nối cùng mạng.');
-              }
-            } catch (e) {
-              Alert.alert('Lỗi', 'Không thể tìm kiếm server: ' + e.message);
-            }
-          } 
-        },
-        { text: 'Đóng' }
-      ]);
+      // Cập nhật kết quả lỗi cho ảnh hiện tại
+      const newResults = [...results];
+      newResults[index] = { error: errorMessage, imageUri };
+      setResults(newResults);
       
-      setResult({
-        error: errorMessage
-      });
+      // Kiểm tra xem còn ảnh nào cần xử lý không
+      if (index < processingQueue.length - 1) {
+        // Chuyển sang ảnh tiếp theo
+        setProcessingIndex(index + 1);
+      } else {
+        // Đã xử lý xong tất cả ảnh
+        setProcessingIndex(-1);
+        setProcessingQueue([]);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   // Xử lý các action của kết quả
-  const handleSaveResult = () => {
+  const handleSaveResult = (result) => {
     Alert.alert('Thông báo', 'Kết quả đã được lưu vào lịch sử.');
   };
 
-  const handleShareResult = () => {
+  const handleShareResult = (result) => {
     Alert.alert('Thông báo', 'Tính năng chia sẻ sẽ được phát triển trong phiên bản tiếp theo.');
   };
 
-  const handlePrintReport = () => {
+  const handlePrintReport = (result) => {
     Alert.alert('Thông báo', 'Tính năng in báo cáo sẽ được phát triển trong phiên bản tiếp theo.');
   };
+
+  // Render item cho FlatList hiển thị ảnh đã chọn
+  const renderImageItem = ({ item, index }) => (
+    <TouchableOpacity
+      style={[
+        styles.imageItem,
+        selectedImageIndex === index && styles.selectedImageItem
+      ]}
+      onPress={() => setSelectedImageIndex(index)}
+    >
+      <Image source={{ uri: item }} style={styles.thumbnailImage} />
+      <View style={styles.imageNumberContainer}>
+        <Text style={styles.imageNumberText}>{index + 1}</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <ScrollView 
@@ -246,10 +331,25 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
       <View style={styles.imageSelectionCard}>
         <Text style={styles.sectionTitle}>Phân tích lá cà phê</Text>
         
-        {imageUri ? (
+        {imageUris.length > 0 ? (
           // Hiển thị ảnh đã chọn
           <View style={styles.imageContainer}>
-            <Image source={{ uri: imageUri }} style={styles.previewImage} />
+            <Image 
+              source={{ uri: imageUris[selectedImageIndex] }} 
+              style={styles.previewImage} 
+            />
+            
+            {/* Hiển thị danh sách thumbnail nếu có nhiều ảnh */}
+            {imageUris.length > 1 && (
+              <FlatList
+                data={imageUris}
+                renderItem={renderImageItem}
+                keyExtractor={(item, index) => index.toString()}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.thumbnailsContainer}
+              />
+            )}
             
             <View style={styles.imageActionButtons}>
               <TouchableOpacity 
@@ -261,13 +361,23 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.actionButton, styles.actionButtonPrimary, loading && styles.disabledButton]}
-                onPress={uploadImage}
-                disabled={loading}
+                style={[
+                  styles.actionButton, 
+                  styles.actionButtonPrimary, 
+                  (loading || processingIndex >= 0) && styles.disabledButton
+                ]}
+                onPress={() => {
+                  // Thêm tất cả ảnh vào hàng đợi xử lý
+                  setProcessingQueue(imageUris);
+                  setProcessingIndex(0);
+                  // Reset kết quả hiện tại
+                  setResults([]);
+                }}
+                disabled={loading || processingIndex >= 0}
               >
                 <FontAwesome5 name="search" size={16} color={COLORS.white} />
                 <Text style={styles.actionButtonText}>
-                  {loading ? 'Đang xử lý...' : 'Nhận diện'}
+                  {loading || processingIndex >= 0 ? 'Đang xử lý...' : 'Nhận diện'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -288,7 +398,7 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
               
               <TouchableOpacity 
                 style={[styles.actionButton, styles.actionButtonSecondary]}
-                onPress={pickImage}
+                onPress={() => setShowImageOptions(true)}
               >
                 <FontAwesome5 name="images" size={16} color={COLORS.white} />
                 <Text style={styles.actionButtonText}>Thư viện</Text>
@@ -298,16 +408,34 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
         )}
       </View>
       
-      {loading && <LoadingIndicator message="Đang phân tích ảnh..." />}
-      
-      {result && (
-        <ResultDisplay 
-          result={result} 
-          onNewScan={selectNewImage}
-          onSave={handleSaveResult}
-          onShare={handleShareResult}
-          onPrint={handlePrintReport}
+      {(loading || processingIndex >= 0) && (
+        <LoadingIndicator 
+          message={`Đang phân tích ảnh ${processingIndex + 1}/${processingQueue.length}...`} 
         />
+      )}
+      
+      {/* Hiển thị kết quả cho tất cả ảnh */}
+      {results.length > 0 && (
+        <View style={styles.resultsContainer}>
+          <Text style={styles.resultsTitle}>Kết quả phân tích ({results.length} ảnh)</Text>
+          
+          {results.map((result, index) => (
+            <View key={index} style={styles.resultItemContainer}>
+              <Text style={styles.resultItemTitle}>Ảnh {index + 1}</Text>
+              <Image 
+                source={{ uri: result.imageUri }} 
+                style={styles.resultItemImage} 
+              />
+              <ResultDisplay 
+                result={result} 
+                onNewScan={selectNewImage}
+                onSave={() => handleSaveResult(result)}
+                onShare={() => handleShareResult(result)}
+                onPrint={() => handlePrintReport(result)}
+              />
+            </View>
+          ))}
+        </View>
       )}
 
       {/* Recent Scans Section - Hiển thị một số mục từ scanHistory thực tế */}
@@ -417,6 +545,7 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
         onClose={() => setShowImageOptions(false)}
         onTakePhoto={takePhoto}
         onPickImage={pickImage}
+        onPickMultipleImages={pickMultipleImages}
       />
       
       <CropOptionsModal
@@ -488,6 +617,39 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
     marginVertical: 10,
   },
+  thumbnailsContainer: {
+    marginVertical: 10,
+    height: 70,
+    width: '100%',
+  },
+  imageItem: {
+    marginRight: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
+  },
+  selectedImageItem: {
+    borderColor: COLORS.primary,
+  },
+  thumbnailImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 5,
+  },
+  imageNumberContainer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderBottomLeftRadius: 5,
+    padding: 3,
+  },
+  imageNumberText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
   imageActionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -526,6 +688,42 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.gray,
     elevation: 0,
     opacity: 0.7,
+  },
+  resultsContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    elevation: 3,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+  },
+  resultsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: COLORS.text,
+  },
+  resultItemContainer: {
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.grayMedium,
+    paddingBottom: 15,
+  },
+  resultItemTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: COLORS.text,
+  },
+  resultItemImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 8,
+    marginBottom: 10,
+    resizeMode: 'cover',
   },
   sectionContainer: {
     backgroundColor: COLORS.white,
@@ -645,7 +843,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.text,
     marginBottom: 5,
-  },
-});
-
-export default ScanTab;
+  },})
+  export default ScanTab;
