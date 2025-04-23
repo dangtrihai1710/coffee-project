@@ -1,6 +1,6 @@
 // components/AuthWrapper.js
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Screens
@@ -24,6 +24,12 @@ const AuthWrapper = () => {
 
   const checkAuthStatus = async () => {
     try {
+      // Lấy storage keys từ AuthService
+      const STORAGE_KEYS = AuthService.storageKeys || {
+        AUTH_TOKEN: 'authToken',
+        USER_DATA: 'userData',
+      };
+      
       // Kiểm tra trạng thái từ AsyncStorage trước
       const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
@@ -52,20 +58,20 @@ const AuthWrapper = () => {
     setIsAuthenticated(true);
   };
 
-// Xử lý lỗi đăng xuất
-const handleLogout = async () => {
-  setIsLoading(true);
-  try {
-    await AuthService.logout();
-    setIsAuthenticated(false);
-    setCurrentScreen('login');
-  } catch (error) {
-    console.error('Lỗi đăng xuất:', error);
-    Alert.alert('Lỗi', 'Không thể đăng xuất. Vui lòng thử lại.');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  // Xử lý đăng xuất
+  const handleLogout = async () => {
+    setIsLoading(true);
+    try {
+      await AuthService.logout();
+      setIsAuthenticated(false);
+      setCurrentScreen('login');
+    } catch (error) {
+      console.error('Lỗi đăng xuất:', error);
+      Alert.alert('Lỗi', 'Không thể đăng xuất. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const navigateToRegister = () => {
     setCurrentScreen('register');

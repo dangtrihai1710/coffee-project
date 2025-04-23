@@ -31,45 +31,33 @@ class AuthService {
     }
   }
   
+  // Export STORAGE_KEYS để có thể sử dụng trong các file khác
+  static get storageKeys() {
+    return STORAGE_KEYS;
+  }
 
   static async register(data) {
     try {
       // Đảm bảo API đã được khởi tạo
       await ApiService.initialize();
       
-      // Trong môi trường demo, có thể chỉ lưu trữ cục bộ
-      if (!ApiService.apiUrl) {
-        // Demo: tạo tài khoản giả lập
-        const mockUser = {
-          id: Date.now().toString(),
-          fullName: data.fullName,
-          email: data.email,
-          phone: data.phone,
-          createdAt: new Date().toISOString(),
-        };
-        
-        // Lưu vào AsyncStorage
-        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
-        await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'demo_token_' + mockUser.id);
-        
-        this.isAuthenticated = true;
-        this.currentUser = mockUser;
-        
-        return {
-          success: true,
-          user: mockUser,
-        };
+      // Demo mode hoặc không có kết nối API
+      if (!ApiService.apiUrl || !ApiService.isInitialized) {
+        console.log('Sử dụng chế độ đăng ký offline do không có kết nối API');
+        return await this.registerOffline(data);
       }
       
-      // Thêm xử lý lỗi khi gọi API
+      // Thử gọi API đăng ký
       try {
-        // Nếu có API thực tế, gửi yêu cầu đăng ký
+        // Gửi yêu cầu đăng ký
         const response = await fetch(`${ApiService.apiUrl}/auth/register`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(data),
+          // Thêm timeout để tránh chờ quá lâu
+          signal: AbortSignal.timeout(10000) // 10 giây timeout
         });
         
         // Kiểm tra kiểu nội dung của phản hồi
@@ -94,28 +82,8 @@ class AuthService {
         return result;
       } catch (error) {
         console.error('Lỗi khi gọi API đăng ký:', error);
-        
-        // Trong trường hợp demo, vẫn cho phép đăng ký thành công
-        console.log('Thực hiện đăng ký offline do lỗi API');
-        
-        const mockUser = {
-          id: Date.now().toString(),
-          fullName: data.fullName,
-          email: data.email,
-          phone: data.phone,
-          createdAt: new Date().toISOString(),
-        };
-        
-        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
-        await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'demo_token_' + mockUser.id);
-        
-        this.isAuthenticated = true;
-        this.currentUser = mockUser;
-        
-        return {
-          success: true,
-          user: mockUser,
-        };
+        // Nếu lỗi kết nối hoặc timeout, chuyển sang chế độ offline
+        return await this.registerOffline(data);
       }
     } catch (error) {
       console.error('Lỗi đăng ký:', error);
@@ -124,6 +92,7 @@ class AuthService {
   }
   
   static async registerOffline(data) {
+    console.log('Đăng ký offline với dữ liệu:', data);
     const mockUser = {
       id: Date.now().toString(),
       fullName: data.fullName,
@@ -132,9 +101,111 @@ class AuthService {
       createdAt: new Date().toISOString(),
     };
     
-    // Lưu vào AsyncStorage
+    try {
+      // Lưu vào AsyncStorage
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
+      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'offline_token_' + mockUser.id);
+      
+      this.isAuthenticated = true;
+      this.currentUser = mockUser;
+      
+      return {
+        success: true,
+        user: mockUser,
+      };
+    } catch (storageError) {
+      console.error('Lỗi lưu dữ liệu đăng ký offline:', storageError);
+      throw new Error('Không thể lưu thông tin đăng ký. Vui lòng thử lại.');
+    }
+  }
+
+  // Sửa phương thức login trong AuthService.js
+  static async login(email, password) {
+    try {
+      // Đảm bảo API đã được khởi tạo
+      await ApiService.initialize();
+      
+      // Trong môi trường demo, kiểm tra với dữ liệu cố định
+      if (email === 'demo@example.com' && password === 'password') {
+        const mockUser = {
+          id: '12345',
+          fullName: 'Người Dùng Demo',
+          email: 'demo@example.com',
+          phone: '0123456789',
+          createdAt: new Date().toISOString(),
+        };
+        
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
+        await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'demo_token_12345');
+        
+        this.isAuthenticated = true;
+        this.currentUser = mockUser;
+        
+        return {
+          success: true,
+          user: mockUser,
+        };
+      } 
+      
+      // Nếu không có API hoặc API không được khởi tạo
+      if (!ApiService.apiUrl || !ApiService.isInitialized) {
+        throw new Error('Email hoặc mật khẩu không đúng');
+      }
+      
+      // Nếu có API thực tế, gửi yêu cầu đăng nhập
+      try {
+        const response = await fetch(`${ApiService.apiUrl}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(10000) // 10 giây timeout
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Đăng nhập thất bại');
+        }
+        
+        const result = await response.json();
+        
+        // Lưu thông tin đăng nhập
+        await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
+        
+        this.isAuthenticated = true;
+        this.currentUser = result.user;
+        
+        return result;
+      } catch (apiError) {
+        console.error('Lỗi API đăng nhập:', apiError);
+        
+        // Nếu đây là lỗi kết nối nhưng email và password là demo, vẫn cho đăng nhập thành công
+        if (email === 'demo@example.com' && password === 'password') {
+          return this.loginOffline(email);
+        }
+        
+        throw apiError;
+      }
+    } catch (error) {
+      console.error('Lỗi đăng nhập:', error);
+      throw error;
+    }
+  }
+  
+  // Thêm phương thức đăng nhập offline
+  static async loginOffline(email) {
+    const mockUser = {
+      id: '12345',
+      fullName: 'Người Dùng Demo',
+      email: email,
+      phone: '0123456789',
+      createdAt: new Date().toISOString(),
+    };
+    
     await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
-    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'offline_token_' + mockUser.id);
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'offline_token_12345');
     
     this.isAuthenticated = true;
     this.currentUser = mockUser;
@@ -144,66 +215,6 @@ class AuthService {
       user: mockUser,
     };
   }
-// Sửa phương thức login trong AuthService.js
-static async login(email, password) {
-  try {
-    // Đảm bảo API đã được khởi tạo
-    await ApiService.initialize();
-    
-    // Trong môi trường demo, kiểm tra với dữ liệu cố định
-    if (email === 'demo@example.com' && password === 'password') {
-      const mockUser = {
-        id: '12345',
-        fullName: 'Người Dùng Demo',
-        email: 'demo@example.com',
-        phone: '0123456789',
-        createdAt: new Date().toISOString(),
-      };
-      
-      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'demo_token_12345');
-      
-      this.isAuthenticated = true;
-      this.currentUser = mockUser;
-      
-      return {
-        success: true,
-        user: mockUser,
-      };
-    } else if (!ApiService.apiUrl) {
-      // Trong trường hợp không có API và không phải tài khoản demo
-      throw new Error('Email hoặc mật khẩu không đúng');
-    }
-    
-    // Nếu có API thực tế, gửi yêu cầu đăng nhập
-    const response = await fetch(`${ApiService.apiUrl}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Đăng nhập thất bại');
-    }
-    
-    const result = await response.json();
-    
-    // Lưu thông tin đăng nhập
-    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
-    await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
-    
-    this.isAuthenticated = true;
-    this.currentUser = result.user;
-    
-    return result;
-  } catch (error) {
-    console.error('Lỗi đăng nhập:', error);
-    throw error;
-  }
-}
   
   // Đăng xuất
   static async logout() {
@@ -255,8 +266,8 @@ static async login(email, password) {
         throw new Error('Chưa đăng nhập');
       }
       
-      // Trong trường hợp demo
-      if (!ApiService.apiUrl) {
+      // Trong trường hợp offline hoặc không có API
+      if (!ApiService.apiUrl || !ApiService.isInitialized) {
         // Lấy thông tin người dùng hiện tại
         const currentUserData = await this.getUserData();
         
@@ -274,31 +285,56 @@ static async login(email, password) {
       }
       
       // Nếu có API thực tế
-      const response = await fetch(`${ApiService.apiUrl}/auth/update-profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(userData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Cập nhật thông tin thất bại');
+      try {
+        const response = await fetch(`${ApiService.apiUrl}/auth/update-profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(userData),
+          signal: AbortSignal.timeout(10000) // 10 giây timeout
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Cập nhật thông tin thất bại');
+        }
+        
+        const result = await response.json();
+        
+        // Lưu thông tin mới
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
+        this.currentUser = result.user;
+        
+        return result;
+      } catch (apiError) {
+        console.error('Lỗi API cập nhật thông tin:', apiError);
+        // Nếu lỗi kết nối, vẫn cập nhật offline
+        return await this.updateUserDataOffline(userData);
       }
-      
-      const result = await response.json();
-      
-      // Lưu thông tin mới
-      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
-      this.currentUser = result.user;
-      
-      return result;
     } catch (error) {
       console.error('Lỗi cập nhật thông tin:', error);
       throw error;
     }
+  }
+  
+  // Thêm phương thức cập nhật thông tin offline
+  static async updateUserDataOffline(userData) {
+    // Lấy thông tin người dùng hiện tại
+    const currentUserData = await this.getUserData();
+    
+    // Cập nhật thông tin
+    const updatedUser = { ...currentUserData, ...userData };
+    
+    // Lưu lại
+    await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(updatedUser));
+    this.currentUser = updatedUser;
+    
+    return {
+      success: true,
+      user: updatedUser,
+    };
   }
   
   // Kiểm tra xác thực
@@ -317,7 +353,7 @@ static async login(email, password) {
       // Đảm bảo API đã được khởi tạo
       await ApiService.initialize();
       
-      if (!ApiService.apiUrl) {
+      if (!ApiService.apiUrl || !ApiService.isInitialized) {
         // Demo: giả lập thành công
         return {
           success: true,
@@ -325,20 +361,30 @@ static async login(email, password) {
         };
       }
       
-      const response = await fetch(`${ApiService.apiUrl}/auth/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Không thể đặt lại mật khẩu');
+      try {
+        const response = await fetch(`${ApiService.apiUrl}/auth/reset-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email }),
+          signal: AbortSignal.timeout(10000) // 10 giây timeout
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Không thể đặt lại mật khẩu');
+        }
+        
+        return await response.json();
+      } catch (apiError) {
+        console.error('Lỗi API đặt lại mật khẩu:', apiError);
+        // Nếu là lỗi kết nối, vẫn trả về thành công giả lập
+        return {
+          success: true,
+          message: 'Đã gửi email đặt lại mật khẩu (offline mode).',
+        };
       }
-      
-      return await response.json();
     } catch (error) {
       console.error('Lỗi đặt lại mật khẩu:', error);
       throw error;

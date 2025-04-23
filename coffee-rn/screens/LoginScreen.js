@@ -9,12 +9,12 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AuthService from '../services/AuthService';
+import ApiService from '../services/ApiService';
 import COLORS from '../styles/colors';
 
 const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
@@ -22,18 +22,29 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  // Kiểm tra nếu đã đăng nhập trước đó
+  // Kiểm tra nếu đã đăng nhập trước đó và khởi tạo API
   useEffect(() => {
-    const checkLoginStatus = async () => {
-      const isLoggedIn = await AuthService.initialize();
-      if (isLoggedIn) {
-        onLoginSuccess();
+    const init = async () => {
+      setIsInitializing(true);
+      try {
+        // Khởi tạo API trước
+        await ApiService.initialize();
+        
+        // Kiểm tra trạng thái đăng nhập
+        const isLoggedIn = await AuthService.initialize();
+        if (isLoggedIn) {
+          onLoginSuccess();
+        }
+      } catch (error) {
+        console.error('Lỗi khởi tạo ứng dụng:', error);
+      } finally {
+        setIsInitializing(false);
       }
     };
     
-    checkLoginStatus();
+    init();
   }, []);
 
   const handleLogin = async () => {
@@ -59,9 +70,34 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
     setIsLoading(true);
     
     try {
-      await AuthService.login(email, password);
-      onLoginSuccess();
+      // Trường hợp demo
+      if (email === 'demo@example.com' && password === 'password') {
+        await AuthService.login(email, password);
+        onLoginSuccess();
+        return;
+      }
+      
+      try {
+        await AuthService.login(email, password);
+        onLoginSuccess();
+      } catch (error) {
+        // Nếu lỗi liên quan đến kết nối nhưng đây là tài khoản demo
+        if (email === 'demo@example.com' && password === 'password' && 
+            (error.message.includes('Network') || error.message.includes('timeout'))) {
+          // Thử đăng nhập offline với tài khoản demo
+          try {
+            await AuthService.loginOffline(email);
+            onLoginSuccess();
+            return;
+          } catch (offlineError) {
+            throw new Error('Không thể đăng nhập ngay cả ở chế độ offline. Vui lòng thử lại sau.');
+          }
+        }
+        
+        throw error;
+      }
     } catch (error) {
+      console.error('Lỗi đăng nhập:', error);
       Alert.alert('Đăng nhập thất bại', error.message || 'Không thể đăng nhập. Vui lòng thử lại sau.');
     } finally {
       setIsLoading(false);
@@ -76,11 +112,34 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
       await AuthService.login('demo@example.com', 'password');
       onLoginSuccess();
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể đăng nhập với tài khoản demo.');
+      console.error('Lỗi đăng nhập demo:', error);
+      
+      // Thử đăng nhập offline nếu có lỗi kết nối
+      if (error.message.includes('Network') || error.message.includes('timeout')) {
+        try {
+          await AuthService.loginOffline('demo@example.com');
+          onLoginSuccess();
+          return;
+        } catch (offlineError) {
+          Alert.alert('Lỗi', 'Không thể đăng nhập với tài khoản demo.');
+        }
+      } else {
+        Alert.alert('Lỗi', 'Không thể đăng nhập với tài khoản demo.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Hiển thị loading khi đang khởi tạo
+  if (isInitializing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Đang khởi tạo ứng dụng...</Text>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -158,7 +217,11 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
             <View style={styles.orLine} />
           </View>
           
-          <TouchableOpacity style={styles.demoButton} onPress={handleDemoLogin}>
+          <TouchableOpacity 
+            style={styles.demoButton} 
+            onPress={handleDemoLogin}
+            disabled={isLoading}
+          >
             <FontAwesome5 name="user-check" size={16} color={COLORS.primary} />
             <Text style={styles.demoButtonText}>Đăng nhập với tài khoản demo</Text>
           </TouchableOpacity>
@@ -182,6 +245,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 40,
     paddingBottom: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: COLORS.primary,
+    fontSize: 16,
   },
   logoContainer: {
     alignItems: 'center',

@@ -90,24 +90,42 @@ const RegisterScreen = ({ onRegisterSuccess, onBack }) => {
         const result = await AuthService.register(userData);
         console.log('Kết quả đăng ký:', result);
         
+        // Kiểm tra xem kết quả là từ mode offline hay online
+        const isOfflineMode = result.user && result.user.id && result.user.id.toString().includes('offline');
+        
         Alert.alert(
-          'Đăng ký thành công',
-          'Tài khoản của bạn đã được tạo thành công!',
+          isOfflineMode ? 'Đăng ký thành công (Offline)' : 'Đăng ký thành công',
+          isOfflineMode 
+            ? 'Tài khoản đã được tạo trong chế độ offline!' 
+            : 'Tài khoản của bạn đã được tạo thành công!',
           [{ text: 'OK', onPress: onRegisterSuccess }]
         );
       } catch (error) {
-        if (error.message && error.message.includes('JSON')) {
-          // Lỗi JSON parse, sử dụng chế độ offline
+        console.error('Lỗi trong quá trình đăng ký:', error);
+        
+        // Kiểm tra loại lỗi
+        if (error.message && (
+          error.message.includes('JSON') || 
+          error.message.includes('Network') ||
+          error.message.includes('timeout') ||
+          error.message.includes('abort')
+        )) {
+          // Lỗi kết nối, thử đăng ký offline
           console.log('Chuyển sang chế độ đăng ký offline do lỗi kết nối');
           
-          await AuthService.registerOffline(userData);
-          Alert.alert(
-            'Đăng ký thành công (Offline)',
-            'Tài khoản đã được tạo trong chế độ offline!',
-            [{ text: 'OK', onPress: onRegisterSuccess }]
-          );
+          try {
+            const offlineResult = await AuthService.registerOffline(userData);
+            Alert.alert(
+              'Đăng ký thành công (Offline)',
+              'Tài khoản đã được tạo trong chế độ offline!',
+              [{ text: 'OK', onPress: onRegisterSuccess }]
+            );
+          } catch (offlineError) {
+            throw new Error('Không thể đăng ký. Vui lòng thử lại sau.');
+          }
         } else {
-          throw error; // Ném lỗi khác để xử lý bên ngoài
+          // Lỗi khác từ API
+          throw error;
         }
       }
     } catch (error) {

@@ -18,7 +18,7 @@ import HistoryTab from './tabs/HistoryTab';
 import MapTab from './tabs/MapTab';
 import TreatmentTab from './tabs/TreatmentTab';
 import HelpTab from './tabs/HelpTab';
-import ProfileScreen from '../screens/ProfileScreen';
+import ProfileScreen from '../screens/ProfileScreen'; // Đảm bảo import đúng
 
 // Services
 import StorageService from '../services/StorageService';
@@ -43,9 +43,17 @@ const CaptureCamera = ({ onLogout }) => {
   // Lấy thông tin người dùng khi component mount
   useEffect(() => {
     const getUserInfo = async () => {
-      const userData = await AuthService.getUserData();
-      if (userData && userData.fullName) {
-        setUserName(userData.fullName);
+      try {
+        const userData = await AuthService.getUserData();
+        if (userData && userData.fullName) {
+          setUserName(userData.fullName);
+        } else {
+          // Nếu không có userData hoặc fullName, đặt tên mặc định
+          setUserName('User');
+        }
+      } catch (error) {
+        console.error('Lỗi khi lấy thông tin người dùng:', error);
+        setUserName('User'); // Đặt tên mặc định nếu có lỗi
       }
     };
     
@@ -61,9 +69,15 @@ const CaptureCamera = ({ onLogout }) => {
 
   // Hàm lấy lịch sử quét
   const loadScanHistory = async () => {
-    const history = await StorageService.getScanHistory();
-    setScanHistory(history);
-    updateHistoryStats(history);
+    try {
+      const history = await StorageService.getScanHistory();
+      setScanHistory(history || []);
+      updateHistoryStats(history || []);
+    } catch (error) {
+      console.error('Lỗi khi tải lịch sử quét:', error);
+      setScanHistory([]);
+      updateHistoryStats([]);
+    }
   };
 
   // Hàm cập nhật thống kê
@@ -79,12 +93,12 @@ const CaptureCamera = ({ onLogout }) => {
     }
 
     const totalScans = history.length;
-    const healthyTrees = history.filter(scan => scan.result.includes('khoẻ')).length;
+    const healthyTrees = history.filter(scan => scan.result && scan.result.includes('khoẻ')).length;
     const diseasedTrees = totalScans - healthyTrees;
 
     // Thống kê các loại bệnh
     const diseases = history.reduce((acc, scan) => {
-      if (!scan.result.includes('khoẻ') && !scan.result.includes('Không phải lá')) {
+      if (scan.result && !scan.result.includes('khoẻ') && !scan.result.includes('Không phải lá')) {
         // Lấy tên bệnh từ kết quả
         const diseaseName = scan.result.includes('gỉ sắt') ? 'Gỉ sắt' :
                          scan.result.includes('phoma') ? 'Phoma' :
@@ -105,42 +119,64 @@ const CaptureCamera = ({ onLogout }) => {
 
   // Hàm thêm kết quả quét mới vào lịch sử
   const addScanToHistory = async (scanResult, imageUri) => {
-    // Tạo đối tượng lưu trữ lịch sử quét
-    const newScan = {
-      id: Date.now().toString(), // Dùng timestamp làm ID
-      date: new Date().toLocaleDateString('vi-VN'), // Format ngày tháng theo tiếng Việt
-      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      result: scanResult.predicted_label,
-      confidence: scanResult.confidence,
-      location: 'Vị trí hiện tại', // Có thể cập nhật để lấy vị trí thực tế nếu cần
-      image: imageUri, // Lưu URI của ảnh đã quét
-      warning: scanResult.warning || null
-    };
+    try {
+      // Tạo đối tượng lưu trữ lịch sử quét
+      const newScan = {
+        id: Date.now().toString(), // Dùng timestamp làm ID
+        date: new Date().toLocaleDateString('vi-VN'), // Format ngày tháng theo tiếng Việt
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        result: scanResult.predicted_label,
+        confidence: scanResult.confidence,
+        location: 'Vị trí hiện tại', // Có thể cập nhật để lấy vị trí thực tế nếu cần
+        image: imageUri, // Lưu URI của ảnh đã quét
+        warning: scanResult.warning || null
+      };
 
-    const updatedHistory = await StorageService.addScanToHistory(newScan);
-    if (updatedHistory) {
-      setScanHistory(updatedHistory);
-      updateHistoryStats(updatedHistory);
+      const updatedHistory = await StorageService.addScanToHistory(newScan);
+      if (updatedHistory) {
+        setScanHistory(updatedHistory);
+        updateHistoryStats(updatedHistory);
+      }
+    } catch (error) {
+      console.error('Lỗi khi thêm kết quả quét vào lịch sử:', error);
     }
   };
 
   // Hàm xóa một mục trong lịch sử
   const deleteHistoryItem = async (id) => {
-    const updatedHistory = await StorageService.removeScanFromHistory(id);
-    if (updatedHistory) {
-      setScanHistory(updatedHistory);
-      updateHistoryStats(updatedHistory);
+    try {
+      const updatedHistory = await StorageService.removeScanFromHistory(id);
+      if (updatedHistory) {
+        setScanHistory(updatedHistory);
+        updateHistoryStats(updatedHistory);
+      }
+    } catch (error) {
+      console.error('Lỗi khi xóa mục lịch sử:', error);
     }
   };
 
   // Hàm xóa toàn bộ lịch sử
   const clearAllHistory = async () => {
-    const success = await StorageService.clearScanHistory();
-    if (success) {
-      setScanHistory([]);
-      updateHistoryStats([]);
+    try {
+      const success = await StorageService.clearScanHistory();
+      if (success) {
+        setScanHistory([]);
+        updateHistoryStats([]);
+      }
+      return success;
+    } catch (error) {
+      console.error('Lỗi khi xóa toàn bộ lịch sử:', error);
+      return false;
     }
-    return success;
+  };
+
+  // Xử lý đăng xuất
+  const handleLogout = () => {
+    if (typeof onLogout === 'function') {
+      onLogout();
+    } else {
+      console.error('onLogout không phải là hàm');
+    }
   };
 
   // Render main content based on active tab
@@ -174,7 +210,8 @@ const CaptureCamera = ({ onLogout }) => {
       case 'treatment':
         return <TreatmentTab />;
       case 'profile':
-        return <ProfileScreen onLogout={onLogout} />;
+        // Đảm bảo onLogout luôn là một hàm
+        return <ProfileScreen onLogout={handleLogout} />;
       case 'help':
         return <HelpTab />;
       default:
@@ -193,16 +230,16 @@ const CaptureCamera = ({ onLogout }) => {
             <Text style={styles.headerTitle}>Coffee Care</Text>
             <Text style={styles.headerSubtitle}>Hệ thống chẩn đoán bệnh cây cà phê</Text>
           </View>
-          {userName && (
-            <TouchableOpacity 
-              style={styles.userButton}
-              onPress={() => setActiveTab('profile')}
-            >
-              <View style={styles.userAvatar}>
-                <Text style={styles.userAvatarText}>{userName.charAt(0).toUpperCase()}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity 
+            style={styles.userButton}
+            onPress={() => setActiveTab('profile')}
+          >
+            <View style={styles.userAvatar}>
+              <Text style={styles.userAvatarText}>
+                {userName ? userName.charAt(0).toUpperCase() : 'U'}
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
       
