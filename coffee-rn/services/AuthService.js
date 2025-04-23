@@ -162,7 +162,6 @@ class AuthService {
         throw new Error('Email hoặc mật khẩu không đúng');
       }
       
-      // Nếu có API thực tế, gửi yêu cầu đăng nhập
       try {
         console.log(`Đang đăng nhập với API URL: ${ApiService.apiUrl}/auth/login`);
         
@@ -182,13 +181,13 @@ class AuthService {
         // Xóa timeout khi hoàn thành
         clearTimeout(timeoutId);
         
-        // Kiểm tra content type trước khi parse JSON
+        // Kiểm tra Content-Type trước khi parse JSON
         const contentType = response.headers.get("content-type");
         if (!contentType || !contentType.includes("application/json")) {
-          // Nhận nội dung thô để gỡ lỗi
+          // Lấy nội dung phản hồi để gỡ lỗi
           const textContent = await response.text();
-          console.error("Phản hồi không phải JSON:", textContent.substring(0, 200) + "...");
-          throw new Error("Server đã trả về định dạng không hợp lệ. Vui lòng kiểm tra kết nối.");
+          console.error("Phản hồi không phải JSON:", textContent.substring(0, 200));
+          throw new Error("Phản hồi từ server không phải định dạng JSON hợp lệ");
         }
         
         const result = await response.json();
