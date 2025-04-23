@@ -41,47 +41,15 @@ class AuthService {
       // Đảm bảo API đã được khởi tạo
       await ApiService.initialize();
       
-      // Demo mode hoặc không có kết nối API
-      if (!ApiService.apiUrl || !ApiService.isInitialized) {
-        console.log('Sử dụng chế độ đăng ký offline do không có kết nối API');
+      // Chuyển qua offline mode nếu không có kết nối API hoặc server không hỗ trợ auth
+      if (!ApiService.apiUrl || !ApiService.isInitialized || !ApiService.hasAuthEndpoints) {
+        console.log('Sử dụng chế độ đăng ký offline do không có kết nối API hoặc server không hỗ trợ auth');
         return await this.registerOffline(data);
       }
       
       // Thử gọi API đăng ký
       try {
-        console.log(`Đang đăng ký với API URL: ${ApiService.apiUrl}/auth/register`);
-        
-        // Tạo AbortController để xử lý timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
-        
-        // Gửi yêu cầu đăng ký
-        const response = await fetch(`${ApiService.apiUrl}/auth/register`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data),
-          signal: controller.signal
-        });
-        
-        // Xóa timeout khi hoàn thành
-        clearTimeout(timeoutId);
-        
-        // Kiểm tra kiểu nội dung của phản hồi
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          // Lấy nội dung phản hồi để gỡ lỗi
-          const textContent = await response.text();
-          console.error("Phản hồi không phải JSON:", textContent.substring(0, 200));
-          throw new Error("Phản hồi từ server không phải định dạng JSON hợp lệ");
-        }
-        
-        const result = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(result.message || 'Đăng ký thất bại');
-        }
+        const result = await ApiService.postJson('/auth/register', data);
         
         // Lưu thông tin đăng nhập
         await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
@@ -93,8 +61,20 @@ class AuthService {
         return result;
       } catch (error) {
         console.error('Lỗi khi gọi API đăng ký:', error);
-        // Nếu lỗi kết nối hoặc timeout, chuyển sang chế độ offline
-        return await this.registerOffline(data);
+        
+        // Nếu lỗi liên quan đến kết nối/timeout, chuyển sang offline mode
+        if (error.message && (
+          error.message.includes('kết nối') || 
+          error.message.includes('không hỗ trợ') ||
+          error.message.includes('không thể') ||
+          error.message.includes('Network') ||
+          error.message.includes('timeout') ||
+          error.message.includes('abort')
+        )) {
+          return await this.registerOffline(data);
+        }
+        
+        throw error;
       }
     } catch (error) {
       console.error('Lỗi đăng ký:', error);
@@ -105,7 +85,7 @@ class AuthService {
   static async registerOffline(data) {
     console.log('Đăng ký offline với dữ liệu:', data);
     const mockUser = {
-      id: Date.now().toString(),
+      id: 'offline_' + Date.now().toString(),
       fullName: data.fullName,
       email: data.email,
       phone: data.phone || '',
@@ -123,6 +103,7 @@ class AuthService {
       return {
         success: true,
         user: mockUser,
+        token: 'offline_token_' + mockUser.id
       };
     } catch (storageError) {
       console.error('Lỗi lưu dữ liệu đăng ký offline:', storageError);
@@ -135,66 +116,21 @@ class AuthService {
       // Đảm bảo API đã được khởi tạo
       await ApiService.initialize();
       
-      // Trong môi trường demo, kiểm tra với dữ liệu cố định
-      if (email === 'demo@example.com' && password === 'password') {
-        const mockUser = {
-          id: '12345',
-          fullName: 'Người Dùng Demo',
-          email: 'demo@example.com',
-          phone: '0123456789',
-          createdAt: new Date().toISOString(),
-        };
+      // Chuyển qua offline mode nếu không có kết nối API hoặc server không hỗ trợ auth
+      if (!ApiService.apiUrl || !ApiService.isInitialized || !ApiService.hasAuthEndpoints) {
+        console.log('Sử dụng chế độ đăng nhập offline do không có kết nối API hoặc server không hỗ trợ auth');
         
-        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
-        await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'demo_token_12345');
-        
-        this.isAuthenticated = true;
-        this.currentUser = mockUser;
-        
-        return {
-          success: true,
-          user: mockUser,
-        };
-      } 
-      
-      // Nếu không có API hoặc API không được khởi tạo
-      if (!ApiService.apiUrl || !ApiService.isInitialized) {
-        throw new Error('Email hoặc mật khẩu không đúng');
+        // Trong môi trường demo, kiểm tra với dữ liệu cố định
+        if (email === 'demo@example.com' && password === 'password') {
+          return this.loginOffline(email);
+        } else {
+          throw new Error('Email hoặc mật khẩu không đúng');
+        }
       }
       
       try {
-        console.log(`Đang đăng nhập với API URL: ${ApiService.apiUrl}/auth/login`);
-        
-        // Tạo AbortController để xử lý timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
-        
-        const response = await fetch(`${ApiService.apiUrl}/auth/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email, password }),
-          signal: controller.signal
-        });
-        
-        // Xóa timeout khi hoàn thành
-        clearTimeout(timeoutId);
-        
-        // Kiểm tra Content-Type trước khi parse JSON
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          // Lấy nội dung phản hồi để gỡ lỗi
-          const textContent = await response.text();
-          console.error("Phản hồi không phải JSON:", textContent.substring(0, 200));
-          throw new Error("Phản hồi từ server không phải định dạng JSON hợp lệ");
-        }
-        
-        const result = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(result.message || 'Đăng nhập thất bại');
-        }
+        // Gọi API đăng nhập
+        const result = await ApiService.postJson('/auth/login', { email, password });
         
         // Lưu thông tin đăng nhập
         await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
@@ -204,8 +140,8 @@ class AuthService {
         this.currentUser = result.user;
         
         return result;
-      } catch (apiError) {
-        console.error('Lỗi API đăng nhập:', apiError);
+      } catch (error) {
+        console.error('Lỗi API đăng nhập:', error);
         
         // Nếu đây là lỗi kết nối nhưng email và password là demo, vẫn cho đăng nhập thành công
         if (email === 'demo@example.com' && password === 'password') {
@@ -213,11 +149,12 @@ class AuthService {
         }
         
         // Kiểm tra nếu là lỗi mạng, chuyển sang chế độ offline
-        if (apiError.message && (
-          apiError.message.includes('Network request failed') ||
-          apiError.message.includes('timeout') ||
-          apiError.message.includes('abort') ||
-          apiError.message.includes('định dạng không hợp lệ')
+        if (error.message && (
+          error.message.includes('Network request failed') ||
+          error.message.includes('timeout') ||
+          error.message.includes('abort') ||
+          error.message.includes('định dạng không hợp lệ') ||
+          error.message.includes('không hỗ trợ')
         )) {
           console.log('Chuyển sang chế độ đăng nhập offline do lỗi kết nối');
           // Chuyển sang chế độ demo nếu là tài khoản demo
@@ -226,7 +163,7 @@ class AuthService {
           }
         }
         
-        throw apiError;
+        throw error;
       }
     } catch (error) {
       console.error('Lỗi đăng nhập:', error);
@@ -237,7 +174,7 @@ class AuthService {
   // Thêm phương thức đăng nhập offline
   static async loginOffline(email) {
     const mockUser = {
-      id: '12345',
+      id: 'offline_12345',
       fullName: 'Người Dùng Demo',
       email: email,
       phone: '0123456789',
@@ -252,6 +189,7 @@ class AuthService {
     
     return {
       success: true,
+      token: 'offline_token_12345',
       user: mockUser,
     };
   }
@@ -306,56 +244,34 @@ class AuthService {
         throw new Error('Chưa đăng nhập');
       }
       
-      // Trong trường hợp offline hoặc không có API
-      if (!ApiService.apiUrl || !ApiService.isInitialized) {
+      // Trong trường hợp offline hoặc không có API hoặc server không hỗ trợ auth
+      if (!ApiService.apiUrl || !ApiService.isInitialized || !ApiService.hasAuthEndpoints) {
         return await this.updateUserDataOffline(userData);
       }
       
       // Nếu có API thực tế
       try {
-        console.log(`Đang cập nhật thông tin với API URL: ${ApiService.apiUrl}/auth/update-profile`);
-        
-        // Tạo AbortController để xử lý timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
-        
-        const response = await fetch(`${ApiService.apiUrl}/auth/update-profile`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(userData),
-          signal: controller.signal
-        });
-        
-        // Xóa timeout khi hoàn thành
-        clearTimeout(timeoutId);
-        
-        // Kiểm tra content type trước khi parse JSON
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          // Nhận nội dung thô để gỡ lỗi
-          const textContent = await response.text();
-          console.error("Phản hồi không phải JSON:", textContent.substring(0, 200) + "...");
-          throw new Error("Server đã trả về định dạng không hợp lệ. Chuyển sang chế độ offline.");
-        }
-        
-        const result = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(result.message || 'Cập nhật thông tin thất bại');
-        }
+        const result = await ApiService.putJson('/auth/update-profile', userData, token);
         
         // Lưu thông tin mới
         await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
         this.currentUser = result.user;
         
         return result;
-      } catch (apiError) {
-        console.error('Lỗi API cập nhật thông tin:', apiError);
+      } catch (error) {
+        console.error('Lỗi API cập nhật thông tin:', error);
         // Nếu lỗi kết nối, vẫn cập nhật offline
-        return await this.updateUserDataOffline(userData);
+        if (error.message && (
+          error.message.includes('kết nối') || 
+          error.message.includes('không hỗ trợ') ||
+          error.message.includes('không thể') ||
+          error.message.includes('Network') ||
+          error.message.includes('timeout') ||
+          error.message.includes('abort')
+        )) {
+          return await this.updateUserDataOffline(userData);
+        }
+        throw error;
       }
     } catch (error) {
       console.error('Lỗi cập nhật thông tin:', error);
@@ -397,55 +313,38 @@ class AuthService {
       // Đảm bảo API đã được khởi tạo
       await ApiService.initialize();
       
-      if (!ApiService.apiUrl || !ApiService.isInitialized) {
+      // Trong trường hợp offline hoặc không có API hoặc server không hỗ trợ auth
+      if (!ApiService.apiUrl || !ApiService.isInitialized || !ApiService.hasAuthEndpoints) {
         // Demo: giả lập thành công
+        console.log('Sử dụng chế độ đặt lại mật khẩu offline do không có kết nối API hoặc server không hỗ trợ auth');
         return {
           success: true,
-          message: 'Đã gửi email đặt lại mật khẩu.',
+          message: 'Đã gửi email đặt lại mật khẩu (chế độ offline).',
         };
       }
       
       try {
-        console.log(`Đang đặt lại mật khẩu với API URL: ${ApiService.apiUrl}/auth/reset-password`);
+        const result = await ApiService.postJson('/auth/reset-password', { email });
+        return result;
+      } catch (error) {
+        console.error('Lỗi API đặt lại mật khẩu:', error);
         
-        // Tạo AbortController để xử lý timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
-        
-        const response = await fetch(`${ApiService.apiUrl}/auth/reset-password`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email }),
-          signal: controller.signal
-        });
-        
-        // Xóa timeout khi hoàn thành
-        clearTimeout(timeoutId);
-        
-        // Kiểm tra content type trước khi parse JSON
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          // Nhận nội dung thô để gỡ lỗi
-          const textContent = await response.text();
-          console.error("Phản hồi không phải JSON:", textContent.substring(0, 200) + "...");
-          throw new Error("Server đã trả về định dạng không hợp lệ. Vui lòng kiểm tra kết nối.");
-        }
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Không thể đặt lại mật khẩu');
-        }
-        
-        return await response.json();
-      } catch (apiError) {
-        console.error('Lỗi API đặt lại mật khẩu:', apiError);
         // Nếu là lỗi kết nối, vẫn trả về thành công giả lập
-        return {
-          success: true,
-          message: 'Đã gửi email đặt lại mật khẩu (offline mode).',
-        };
+        if (error.message && (
+          error.message.includes('kết nối') || 
+          error.message.includes('không hỗ trợ') ||
+          error.message.includes('không thể') ||
+          error.message.includes('Network') ||
+          error.message.includes('timeout') ||
+          error.message.includes('abort')
+        )) {
+          return {
+            success: true,
+            message: 'Đã gửi email đặt lại mật khẩu (chế độ offline).',
+          };
+        }
+        
+        throw error;
       }
     } catch (error) {
       console.error('Lỗi đặt lại mật khẩu:', error);

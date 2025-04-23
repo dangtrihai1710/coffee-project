@@ -6,6 +6,7 @@ class ApiService {
   static CONNECTION_TIMEOUT = 5000; // Giảm timeout xuống 5 giây để nhanh hơn
   static isInitialized = false;
   static apiUrl = null;
+  static hasAuthEndpoints = false;  // Đánh dấu có hỗ trợ các routes xác thực không
   
   // Danh sách các IP thông dụng để thử kết nối
   static COMMON_IPS = [
@@ -20,6 +21,32 @@ class ApiService {
     '192.168.100.142',
     '192.168.182.50',
   ];
+  
+  // Kiểm tra một endpoint cụ thể trên server
+  static async checkEndpointAvailability(url, endpoint) {
+    try {
+      const fullUrl = `${url}${endpoint}`;
+      console.log(`[API] Kiểm tra endpoint: ${fullUrl}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, this.CONNECTION_TIMEOUT);
+      
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      // Nếu endpoint tồn tại và trả về 200 OK
+      return response.ok;
+    } catch (error) {
+      console.log(`[API] Endpoint không khả dụng: ${error.message}`);
+      return false;
+    }
+  }
   
   // Khởi tạo API URL bằng cách tự động tìm server
   static async initialize(forceReconnect = false) {
@@ -44,6 +71,7 @@ class ApiService {
     if (forceReconnect) {
       this.isInitialized = false;
       this.apiUrl = null;
+      this.hasAuthEndpoints = false;
     }
     
     // Thêm dòng này để in log
@@ -57,6 +85,11 @@ class ApiService {
           this.apiUrl = emulatorUrl;
           this.isInitialized = true;
           console.log(`[API] Đã kết nối tới server emulator: ${this.apiUrl}`);
+          
+          // Kiểm tra xem có hỗ trợ auth endpoints không
+          this.hasAuthEndpoints = await this.checkEndpointAvailability(this.apiUrl, '/auth/login');
+          console.log(`[API] Server hỗ trợ auth endpoints: ${this.hasAuthEndpoints}`);
+          
           return this.apiUrl;
         }
       } catch (error) {
@@ -74,6 +107,11 @@ class ApiService {
           this.apiUrl = url;
           this.isInitialized = true;
           console.log(`[API] Đã kết nối thành công tới: ${this.apiUrl}`);
+          
+          // Kiểm tra xem có hỗ trợ auth endpoints không
+          this.hasAuthEndpoints = await this.checkEndpointAvailability(this.apiUrl, '/auth/login');
+          console.log(`[API] Server hỗ trợ auth endpoints: ${this.hasAuthEndpoints}`);
+          
           return this.apiUrl;
         }
       } catch (error) {
@@ -84,6 +122,7 @@ class ApiService {
     // Nếu không tìm thấy server, trả về null
     console.warn('[API] Không thể tự động tìm được server.');
     this.isInitialized = false;
+    this.hasAuthEndpoints = false;
     return null;
   }
   
@@ -244,6 +283,128 @@ class ApiService {
       throw error;
     }
   }
+
+  // Gửi POST request có chứa JSON
+  static async postJson(endpoint, data) {
+    try {
+      // Đảm bảo đã khởi tạo API URL
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+      
+      if (!this.apiUrl) {
+        throw new Error('Không thể kết nối đến server.');
+      }
+      
+      // Kiểm tra xem endpoint có phải là auth endpoint không
+      if (endpoint.startsWith('/auth/') && !this.hasAuthEndpoints) {
+        throw new Error('Server không hỗ trợ xác thực');
+      }
+      
+      console.log(`[API] Gửi POST request đến: ${this.apiUrl}${endpoint}`);
+      
+      // Tạo AbortController để xử lý timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
+      
+      const response = await fetch(`${this.apiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+        signal: controller.signal
+      });
+      
+      // Xóa timeout khi hoàn thành
+      clearTimeout(timeoutId);
+      
+      // Kiểm tra content type
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        // Nhận nội dung thô để gỡ lỗi
+        const textContent = await response.text();
+        console.error(`Phản hồi không phải JSON từ ${endpoint}:`, textContent.substring(0, 200) + "...");
+        throw new Error("Server đã trả về định dạng không hợp lệ.");
+      }
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error(`[API] Lỗi khi gọi ${endpoint}:`, error);
+      throw error;
+    }
+  }
+  
+// Gửi PUT request có chứa JSON
+static async putJson(endpoint, data, token = null) {
+  try {
+    // Đảm bảo đã khởi tạo API URL
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    
+    if (!this.apiUrl) {
+      throw new Error('Không thể kết nối đến server.');
+    }
+    
+    // Kiểm tra xem endpoint có phải là auth endpoint không
+    if (endpoint.startsWith('/auth/') && !this.hasAuthEndpoints) {
+      throw new Error('Server không hỗ trợ xác thực');
+    }
+    
+    console.log(`[API] Gửi PUT request đến: ${this.apiUrl}${endpoint}`);
+    
+    // Tạo AbortController để xử lý timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
+    
+    // Chuẩn bị headers
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Thêm token nếu có
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${this.apiUrl}${endpoint}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(data),
+      signal: controller.signal
+    });
+    
+    // Xóa timeout khi hoàn thành
+    clearTimeout(timeoutId);
+    
+    // Kiểm tra content type
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      // Nhận nội dung thô để gỡ lỗi
+      const textContent = await response.text();
+      console.error(`Phản hồi không phải JSON từ ${endpoint}:`, textContent.substring(0, 200) + "...");
+      throw new Error("Server đã trả về định dạng không hợp lệ.");
+    }
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`[API] Lỗi khi gọi ${endpoint}:`, error);
+    throw error;
+  }
+}
 }
 
 export default ApiService;

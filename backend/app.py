@@ -1,5 +1,7 @@
 import io
 import numpy as np
+import uuid
+from datetime import datetime
 from PIL import Image
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -241,6 +243,79 @@ def predict():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ============ Routes xác thực ============
+
+@app.route("/auth/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    
+    # Demo đơn giản: kiểm tra nếu email/pass là demo
+    if data.get('email') == 'demo@example.com' and data.get('password') == 'password':
+        return jsonify({
+            "success": True,
+            "token": "demo_token_12345",
+            "user": {
+                "id": "12345",
+                "fullName": "Người Dùng Demo",
+                "email": "demo@example.com",
+                "phone": "0123456789",
+                "createdAt": datetime.now().isoformat()
+            }
+        })
+    
+    return jsonify({"success": False, "message": "Email hoặc mật khẩu không đúng"}), 401
+
+@app.route("/auth/register", methods=["POST"])
+def register():
+    data = request.get_json()
+    
+    # Kiểm tra email đã tồn tại
+    if data.get('email') == 'demo@example.com':
+        return jsonify({"success": False, "message": "Email đã được sử dụng"}), 400
+    
+    # Tạo user mới
+    user = {
+        "id": str(uuid.uuid4()),
+        "fullName": data.get('fullName', ''),
+        "email": data.get('email', ''),
+        "phone": data.get('phone', ''),
+        "createdAt": datetime.now().isoformat()
+    }
+    
+    return jsonify({
+        "success": True,
+        "token": f"token_{user['id']}",
+        "user": user
+    })
+
+@app.route("/auth/reset-password", methods=["POST"])
+def reset_password():
+    data = request.get_json()
+    
+    # Demo chỉ trả về thành công
+    return jsonify({
+        "success": True,
+        "message": "Đã gửi email đặt lại mật khẩu."
+    })
+
+@app.route("/auth/update-profile", methods=["PUT"])
+def update_profile():
+    data = request.get_json()
+    
+    # Demo trả về thành công với dữ liệu đã cập nhật
+    updated_user = {
+        "id": "12345",
+        "fullName": data.get('fullName', 'Người Dùng Demo'),
+        "email": data.get('email', 'demo@example.com'),
+        "phone": data.get('phone', '0123456789'),
+        "createdAt": "2023-01-01T00:00:00"
+    }
+    
+    return jsonify({
+        "success": True,
+        "user": updated_user
+    })
 
 # ============ Chạy app ============
 
