@@ -176,74 +176,6 @@ def has_extreme_non_leaf_features(image):
 def home():
     return "API Cascade: model1 (coffee vs not_coffee) => model2 (disease)!"
 
-# ============ Route predict ============
-
-@app.route("/predict", methods=["POST"])
-def predict():
-    if "file" not in request.files:
-        return jsonify({"error": "Không có file được gửi lên"}), 400
-    
-    file = request.files["file"]
-    try:
-        # Đọc ảnh từ file gửi lên
-        image = Image.open(io.BytesIO(file.read()))
-        
-        # BƯỚC 0: Tiền lọc - Kiểm tra các trường hợp cực đoan rõ ràng
-        if has_extreme_non_leaf_features(image):
-            return jsonify({
-                "predicted_label": "Không phải lá cây",
-                "confidence": "99.00%", 
-                "is_leaf": False
-            })
-        
-        # Tiền xử lý ảnh cho model coffee vs not_coffee
-        processed_coffee = preprocess_image(image, is_coffee_model=True)
-
-        # ====== Bước 1: Model coffee vs not_coffee ======
-        preds_coffee = model_coffee.predict(processed_coffee)
-        
-        # Xác định xác suất not_coffee
-        prob_not_coffee = float(preds_coffee[0][0])
-        
-        # Ngưỡng để phân loại not_coffee
-        if prob_not_coffee > 0.85:
-            return jsonify({
-                "predicted_label": "Không phải lá cà phê",
-                "confidence": f"{prob_not_coffee * 100:.2f}%",
-                "is_leaf": True
-            })
-        else:
-            # ====== Bước 2: Model phân loại bệnh lá cà phê ======
-            # Tiền xử lý ảnh cho model bệnh lá (chú ý khác với model coffee)
-            processed_disease = preprocess_image(image, is_coffee_model=False)
-            
-            # Dự đoán bệnh với model categorical
-            preds_disease = model_disease.predict(processed_disease)
-            
-            # Chuyển về index của lớp có xác suất cao nhất
-            class_id = int(np.argmax(preds_disease, axis=1)[0])
-            predicted_label = LABELS_DISEASE[class_id]
-            confidence = float(np.max(preds_disease) * 100.0)
-            
-            # Nếu nằm ở vùng không chắc chắn (0.75-0.85), đưa ra cảnh báo
-            if prob_not_coffee > 0.75 and prob_not_coffee <= 0.85:
-                coffee_confidence = (1 - prob_not_coffee) * 100
-                return jsonify({
-                    "predicted_label": predicted_label,
-                    "confidence": f"{coffee_confidence:.2f}%",
-                    "warning": "Cây có thể không phải cà phê, hãy kiểm tra lại",
-                    "is_leaf": True
-                })
-            
-            return jsonify({
-                "predicted_label": predicted_label,
-                "confidence": f"{confidence:.2f}%",
-                "is_leaf": True
-            })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 # ============ Routes xác thực ============
 
 @app.route("/auth/login", methods=["POST"])
@@ -316,6 +248,74 @@ def update_profile():
         "success": True,
         "user": updated_user
     })
+
+# ============ Route predict ============
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    if "file" not in request.files:
+        return jsonify({"error": "Không có file được gửi lên"}), 400
+    
+    file = request.files["file"]
+    try:
+        # Đọc ảnh từ file gửi lên
+        image = Image.open(io.BytesIO(file.read()))
+        
+        # BƯỚC 0: Tiền lọc - Kiểm tra các trường hợp cực đoan rõ ràng
+        if has_extreme_non_leaf_features(image):
+            return jsonify({
+                "predicted_label": "Không phải lá cây",
+                "confidence": "99.00%", 
+                "is_leaf": False
+            })
+        
+        # Tiền xử lý ảnh cho model coffee vs not_coffee
+        processed_coffee = preprocess_image(image, is_coffee_model=True)
+
+        # ====== Bước 1: Model coffee vs not_coffee ======
+        preds_coffee = model_coffee.predict(processed_coffee)
+        
+        # Xác định xác suất not_coffee
+        prob_not_coffee = float(preds_coffee[0][0])
+        
+        # Ngưỡng để phân loại not_coffee
+        if prob_not_coffee > 0.85:
+            return jsonify({
+                "predicted_label": "Không phải lá cà phê",
+                "confidence": f"{prob_not_coffee * 100:.2f}%",
+                "is_leaf": True
+            })
+        else:
+            # ====== Bước 2: Model phân loại bệnh lá cà phê ======
+            # Tiền xử lý ảnh cho model bệnh lá (chú ý khác với model coffee)
+            processed_disease = preprocess_image(image, is_coffee_model=False)
+            
+            # Dự đoán bệnh với model categorical
+            preds_disease = model_disease.predict(processed_disease)
+            
+            # Chuyển về index của lớp có xác suất cao nhất
+            class_id = int(np.argmax(preds_disease, axis=1)[0])
+            predicted_label = LABELS_DISEASE[class_id]
+            confidence = float(np.max(preds_disease) * 100.0)
+            
+            # Nếu nằm ở vùng không chắc chắn (0.75-0.85), đưa ra cảnh báo
+            if prob_not_coffee > 0.75 and prob_not_coffee <= 0.85:
+                coffee_confidence = (1 - prob_not_coffee) * 100
+                return jsonify({
+                    "predicted_label": predicted_label,
+                    "confidence": f"{coffee_confidence:.2f}%",
+                    "warning": "Cây có thể không phải cà phê, hãy kiểm tra lại",
+                    "is_leaf": True
+                })
+            
+            return jsonify({
+                "predicted_label": predicted_label,
+                "confidence": f"{confidence:.2f}%",
+                "is_leaf": True
+            })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ============ Chạy app ============
 

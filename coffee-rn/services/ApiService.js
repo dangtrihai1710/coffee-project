@@ -10,16 +10,7 @@ class ApiService {
   
   // Danh sách các IP thông dụng để thử kết nối
   static COMMON_IPS = [
-    '10.0.2.2',      // Máy chủ local trong Android Emulator
-    '127.0.0.1',     // Localhost
-    '192.168.1.2',   // Các IP thông dụng của mạng nội bộ
-    '192.168.1.3',
-    '192.168.1.4',
-    '192.168.1.5',
-    '192.168.0.100',
-    '192.168.0.101',
     '192.168.100.142',
-    '192.168.182.50',
   ];
   
   // Kiểm tra một endpoint cụ thể trên server
@@ -328,13 +319,13 @@ class ApiService {
         throw new Error("Server đã trả về định dạng không hợp lệ.");
       }
       
-      const data = await response.json();
+      const result = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+        throw new Error(result.message || `HTTP error! status: ${response.status}`);
       }
       
-      return data;
+      return result;
     } catch (error) {
       console.error(`[API] Lỗi khi gọi ${endpoint}:`, error);
       throw error;
@@ -393,13 +384,13 @@ static async putJson(endpoint, data, token = null) {
       throw new Error("Server đã trả về định dạng không hợp lệ.");
     }
     
-    const data = await response.json();
+    const result = await response.json();
     
     if (!response.ok) {
-      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      throw new Error(result.message || `HTTP error! status: ${response.status}`);
     }
     
-    return data;
+    return result;
   } catch (error) {
     console.error(`[API] Lỗi khi gọi ${endpoint}:`, error);
     throw error;

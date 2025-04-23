@@ -47,6 +47,26 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
     init();
   }, []);
 
+  // Xóa dữ liệu và đăng nhập demo
+  const handleClearAndLogin = async () => {
+    setIsLoading(true);
+    
+    try {
+      // Xóa toàn bộ dữ liệu trước khi đăng nhập
+      await AuthService.clearAllData();
+      
+      // Đăng nhập với tài khoản demo
+      await AuthService.loginOffline('demo@example.com');
+      
+      onLoginSuccess();
+    } catch (error) {
+      console.error('Lỗi khi xóa dữ liệu và đăng nhập:', error);
+      Alert.alert('Lỗi', 'Không thể đăng nhập. Vui lòng thử lại sau.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLogin = async () => {
     // Kiểm tra dữ liệu đầu vào
     if (!email || !password) {
@@ -70,31 +90,26 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
     setIsLoading(true);
     
     try {
-      // Trường hợp demo
-      if (email === 'demo@example.com' && password === 'password') {
-        await AuthService.login(email, password);
-        onLoginSuccess();
-        return;
-      }
-      
+      // Thử đăng nhập bình thường
       try {
         await AuthService.login(email, password);
         onLoginSuccess();
       } catch (error) {
-        // Nếu lỗi liên quan đến kết nối nhưng đây là tài khoản demo
+        // Nếu lỗi kết nối/server nhưng là tài khoản demo
         if (email === 'demo@example.com' && password === 'password' && 
             (error.message.includes('Network') || error.message.includes('timeout'))) {
           // Thử đăng nhập offline với tài khoản demo
-          try {
-            await AuthService.loginOffline(email);
-            onLoginSuccess();
-            return;
-          } catch (offlineError) {
-            throw new Error('Không thể đăng nhập ngay cả ở chế độ offline. Vui lòng thử lại sau.');
-          }
+          await AuthService.loginOffline(email);
+          onLoginSuccess();
+          return;
         }
         
-        throw error;
+        // Nếu là lỗi chung
+        if (error.message.includes('Email hoặc mật khẩu không đúng')) {
+          Alert.alert('Đăng nhập thất bại', 'Email hoặc mật khẩu không đúng. Vui lòng thử lại.');
+        } else {
+          throw error;
+        }
       }
     } catch (error) {
       console.error('Lỗi đăng nhập:', error);
@@ -224,6 +239,14 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
           >
             <FontAwesome5 name="user-check" size={16} color={COLORS.primary} />
             <Text style={styles.demoButtonText}>Đăng nhập với tài khoản demo</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.helpButton} 
+            onPress={handleClearAndLogin}
+          >
+            <FontAwesome5 name="tools" size={16} color={COLORS.primary} />
+            <Text style={styles.helpButtonText}>Xóa dữ liệu và đăng nhập Demo</Text>
           </TouchableOpacity>
         </View>
         
@@ -361,10 +384,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     backgroundColor: COLORS.primaryLight,
+    marginBottom: 10,
   },
   demoButtonText: {
     color: COLORS.primary,
     fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 10,
+  },
+  helpButton: {
+    borderWidth: 1,
+    borderColor: COLORS.info,
+    borderRadius: 8,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    backgroundColor: COLORS.infoLight,
+  },
+  helpButtonText: {
+    color: COLORS.info,
+    fontSize: 14,
     fontWeight: '500',
     marginLeft: 10,
   },
