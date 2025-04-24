@@ -4,6 +4,9 @@ import { SafeAreaView, StyleSheet } from 'react-native';
 import AuthWrapper from './components/AuthWrapper';
 import ApiService from './services/ApiService';
 
+// Khởi tạo InteractionMemoryService
+import { InteractionMemoryService } from './services/InteractionMemoryService';
+
 export default function App() {
   // Khởi tạo ApiService khi app khởi động
   useEffect(() => {
@@ -16,7 +19,19 @@ export default function App() {
       }
     };
     
+    // Khởi tạo InteractionMemoryService
+    const initializeMemoryService = async () => {
+      try {
+        // Đảm bảo có ngữ cảnh người dùng mặc định
+        const userContext = await InteractionMemoryService.getUserContext();
+        console.log('InteractionMemoryService đã khởi tạo', userContext);
+      } catch (error) {
+        console.error('Lỗi khởi tạo InteractionMemoryService:', error);
+      }
+    };
+    
     initializeApi();
+    initializeMemoryService();
   }, []);
 
   return (

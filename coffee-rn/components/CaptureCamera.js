@@ -18,7 +18,8 @@ import HistoryTab from './tabs/HistoryTab';
 import MapTab from './tabs/MapTab';
 import TreatmentTab from './tabs/TreatmentTab';
 import HelpTab from './tabs/HelpTab';
-import ProfileScreen from '../screens/ProfileScreen'; // Đảm bảo import đúng
+import ProfileScreen from '../screens/ProfileScreen';
+import AdvisorTab from './tabs/AdvisorTab'; // Import tab mới
 
 // Services
 import StorageService from '../services/StorageService';
@@ -62,7 +63,7 @@ const CaptureCamera = ({ onLogout }) => {
   
   // UseEffect để tải lịch sử quét khi component mount và khi chuyển tab
   useEffect(() => {
-    if (activeTab === 'history') {
+    if (activeTab === 'history' || activeTab === 'advisor') {
       loadScanHistory();
     }
   }, [activeTab]);
@@ -209,6 +210,13 @@ const CaptureCamera = ({ onLogout }) => {
         return <MapTab />;
       case 'treatment':
         return <TreatmentTab />;
+      case 'advisor':
+        return (
+          <AdvisorTab 
+            scanHistory={scanHistory}
+            historyStats={historyStats}
+          />
+        );
       case 'profile':
         // Đảm bảo onLogout luôn là một hàm
         return <ProfileScreen onLogout={handleLogout} />;
@@ -282,17 +290,17 @@ const CaptureCamera = ({ onLogout }) => {
         
         <TouchableOpacity 
           style={styles.navItem} 
-          onPress={() => setActiveTab('map')}
+          onPress={() => setActiveTab('advisor')}
         >
           <FontAwesome5 
-            name="map-marked-alt" 
+            name="robot" 
             size={20} 
-            color={activeTab === 'map' ? COLORS.primary : COLORS.textMuted} 
+            color={activeTab === 'advisor' ? COLORS.primary : COLORS.textMuted} 
           />
           <Text style={[
             styles.navText, 
-            {color: activeTab === 'map' ? COLORS.primary : COLORS.textMuted}
-          ]}>Bản đồ</Text>
+            {color: activeTab === 'advisor' ? COLORS.primary : COLORS.textMuted}
+          ]}>Tư vấn</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
