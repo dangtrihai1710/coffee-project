@@ -45,6 +45,9 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [showHistory, setShowHistory] = useState(true);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedConversations, setSelectedConversations] = useState([]);
   
   const scrollViewRef = useRef();
   const inputRef = useRef();
@@ -59,6 +62,31 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   // Load danh sách hội thoại khi mở tab
   useEffect(() => {
     loadConversations();
+    
+    // Theo dõi sự kiện bàn phím
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      (event) => {
+        setKeyboardHeight(event.endCoordinates.height);
+        // Cuộn đến cuối khi bàn phím hiển thị
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+    
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    
+    // Dọn dẹp lắng nghe sự kiện
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
   }, []);
   
   // Load danh sách hội thoại từ AsyncStorage
@@ -137,7 +165,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }
   };
   
-  // Xóa hội thoại
+  // Xóa một hội thoại
   const deleteConversation = async (id) => {
     try {
       // Xóa tin nhắn của hội thoại
@@ -153,10 +181,53 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
         setShowHistory(true);
       }
       
-      Alert.alert('Thành công', 'Đã xóa hội thoại');
+      return true;
     } catch (error) {
       console.error('Lỗi khi xóa hội thoại:', error);
-      Alert.alert('Lỗi', 'Không thể xóa hội thoại. Vui lòng thử lại sau.');
+      return false;
+    }
+  };
+  
+  // Xóa nhiều hội thoại
+  const deleteMultipleConversations = async () => {
+    if (selectedConversations.length === 0) return;
+    
+    try {
+      // Xóa tin nhắn của các hội thoại đã chọn
+      for (const id of selectedConversations) {
+        await AsyncStorage.removeItem(`${STORAGE_KEY}_${id}`);
+      }
+      
+      // Cập nhật danh sách hội thoại
+      const updatedConversations = conversations.filter(
+        conv => !selectedConversations.includes(conv.id)
+      );
+      
+      setConversations(updatedConversations);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
+      
+      // Nếu đang ở hội thoại bị xóa, quay lại danh sách
+      if (selectedConversations.includes(currentConversationId)) {
+        setShowHistory(true);
+      }
+      
+      // Reset chế độ chọn
+      setIsSelectMode(false);
+      setSelectedConversations([]);
+      
+      return true;
+    } catch (error) {
+      console.error('Lỗi khi xóa nhiều hội thoại:', error);
+      return false;
+    }
+  };
+  
+  // Xử lý chọn/bỏ chọn hội thoại
+  const toggleSelectConversation = (id) => {
+    if (selectedConversations.includes(id)) {
+      setSelectedConversations(selectedConversations.filter(convId => convId !== id));
+    } else {
+      setSelectedConversations([...selectedConversations, id]);
     }
   };
   
@@ -479,13 +550,74 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
         <View style={styles.historyContainer}>
           <View style={styles.historyHeader}>
             <Text style={styles.historyTitle}>Tư vấn</Text>
-            <TouchableOpacity
-              style={styles.newChatButton}
-              onPress={createNewConversation}
-            >
-              <FontAwesome5 name="plus" size={14} color={COLORS.white} />
-              <Text style={styles.newChatButtonText}>Hội thoại mới</Text>
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              {isSelectMode ? (
+                <>
+                  <TouchableOpacity
+                    style={[styles.headerButton, styles.cancelButton]}
+                    onPress={() => {
+                      setIsSelectMode(false);
+                      setSelectedConversations([]);
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Hủy</Text>
+                  </TouchableOpacity>
+                  
+                  {selectedConversations.length > 0 && (
+                    <TouchableOpacity
+                      style={[styles.headerButton, styles.deleteButton]}
+                      onPress={() => {
+                        Alert.alert(
+                          'Xác nhận xóa',
+                          `Bạn có chắc chắn muốn xóa ${selectedConversations.length} hội thoại đã chọn?`,
+                          [
+                            {
+                              text: 'Hủy',
+                              style: 'cancel'
+                            },
+                            {
+                              text: 'Xóa',
+                              style: 'destructive',
+                              onPress: async () => {
+                                const success = await deleteMultipleConversations();
+                                if (success) {
+                                  Alert.alert('Thành công', 'Đã xóa các hội thoại đã chọn.');
+                                } else {
+                                  Alert.alert('Lỗi', 'Không thể xóa hội thoại. Vui lòng thử lại sau.');
+                                }
+                              }
+                            }
+                          ]
+                        );
+                      }}
+                    >
+                      <FontAwesome5 name="trash" size={14} color={COLORS.white} />
+                      <Text style={styles.deleteButtonText}>Xóa ({selectedConversations.length})</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              ) : (
+                <>
+                  {conversations.length > 1 && (
+                    <TouchableOpacity
+                      style={[styles.headerButton, styles.selectButton]}
+                      onPress={() => setIsSelectMode(true)}
+                    >
+                      <FontAwesome5 name="check-square" size={14} color={COLORS.white} />
+                      <Text style={styles.selectButtonText}>Chọn</Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  <TouchableOpacity
+                    style={[styles.headerButton, styles.newChatButton]}
+                    onPress={createNewConversation}
+                  >
+                    <FontAwesome5 name="plus" size={14} color={COLORS.white} />
+                    <Text style={styles.newChatButtonText}>Mới</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
           
           <ScrollView style={styles.conversationsList}>
@@ -493,6 +625,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
               <TouchableOpacity
                 style={styles.scanAnalysisButton}
                 onPress={analyzeScanData}
+                disabled={isSelectMode}
               >
                 <View style={styles.scanAnalysisIcon}>
                   <FontAwesome5 name="leaf" size={20} color={COLORS.white} />
@@ -510,34 +643,51 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
             {conversations.map(conversation => (
               <TouchableOpacity
                 key={conversation.id}
-                style={styles.conversationItem}
-                onPress={() => setCurrentConversationId(conversation.id)}
+                style={[
+                  styles.conversationItem,
+                  selectedConversations.includes(conversation.id) && styles.selectedConversationItem
+                ]}
+                onPress={() => {
+                  if (isSelectMode) {
+                    toggleSelectConversation(conversation.id);
+                  } else {
+                    setCurrentConversationId(conversation.id);
+                  }
+                }}
                 onLongPress={() => {
-                  Alert.alert(
-                    'Xác nhận xóa',
-                    'Bạn có chắc chắn muốn xóa hội thoại này?',
-                    [
-                      {
-                        text: 'Hủy',
-                        style: 'cancel'
-                      },
-                      {
-                        text: 'Xóa',
-                        style: 'destructive',
-                        onPress: () => deleteConversation(conversation.id)
-                      }
-                    ]
-                  );
+                  if (!isSelectMode) {
+                    setIsSelectMode(true);
+                    setSelectedConversations([conversation.id]);
+                  }
                 }}
               >
-                <View style={styles.conversationIcon}>
-                  <FontAwesome5 name="comment" size={20} color={COLORS.primary} />
-                </View>
+                {isSelectMode ? (
+                  <View style={styles.checkboxContainer}>
+                    <View 
+                      style={[
+                        styles.checkbox,
+                        selectedConversations.includes(conversation.id) && styles.checkboxSelected
+                      ]}
+                    >
+                      {selectedConversations.includes(conversation.id) && (
+                        <FontAwesome5 name="check" size={12} color={COLORS.white} />
+                      )}
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.conversationIcon}>
+                    <FontAwesome5 name="comment" size={20} color={COLORS.primary} />
+                  </View>
+                )}
+                
                 <View style={styles.conversationContent}>
                   <Text style={styles.conversationTitle}>{conversation.title}</Text>
                   <Text style={styles.conversationPreview}>{conversation.lastMessage}</Text>
                 </View>
-                <Text style={styles.conversationTime}>{conversation.time}</Text>
+                
+                {!isSelectMode && (
+                  <Text style={styles.conversationTime}>{conversation.time}</Text>
+                )}
               </TouchableOpacity>
             ))}
             
@@ -575,7 +725,10 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
           <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
-            contentContainerStyle={styles.messagesContent}
+            contentContainerStyle={[
+              styles.messagesContent,
+              { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 90 }
+            ]}
           >
             {/* Welcome message if no messages */}
             {messages.length === 0 && (
@@ -719,7 +872,8 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                         color={
                           message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? COLORS.success : COLORS.danger
                         } 
-                      /> Bạn đã đánh giá đề xuất này
+                      />
+                      <Text> Bạn đã đánh giá đề xuất này</Text>
                     </Text>
                   </View>
                 )}
@@ -785,19 +939,49 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.grayMedium,
   },
   historyTitle: {
-    fontSize: 18,  // Giảm kích thước tiêu đề
+    fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
   },
-  newChatButton: {
+  headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  },
+  headerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 20,
+    marginLeft: 8,
+  },
+  newChatButton: {
+    backgroundColor: COLORS.primary,
   },
   newChatButtonText: {
+    color: COLORS.white,
+    marginLeft: 5,
+    fontSize: 14,
+  },
+  selectButton: {
+    backgroundColor: COLORS.secondary,
+  },
+  selectButtonText: {
+    color: COLORS.white,
+    marginLeft: 5,
+    fontSize: 14,
+  },
+  cancelButton: {
+    backgroundColor: COLORS.grayMedium,
+  },
+  cancelButtonText: {
+    color: COLORS.white,
+    fontSize: 14,
+  },
+  deleteButton: {
+    backgroundColor: COLORS.danger,
+  },
+  deleteButtonText: {
     color: COLORS.white,
     marginLeft: 5,
     fontSize: 14,
@@ -841,6 +1025,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.grayLight,
     backgroundColor: COLORS.white,
+  },
+  selectedConversationItem: {
+    backgroundColor: COLORS.primaryLight,
+  },
+  checkboxContainer: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+  checkboxSelected: {
+    backgroundColor: COLORS.primary,
   },
   conversationIcon: {
     width: 40,
@@ -907,6 +1114,8 @@ const styles = StyleSheet.create({
     padding: 15,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.grayMedium,
+    backgroundColor: COLORS.white,
+    zIndex: 10,
   },
   backButton: {
     padding: 5,
@@ -924,7 +1133,7 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 15,
-    paddingBottom: 30,
+    paddingBottom: 90, // Thêm padding phía dưới để đảm bảo nội dung không bị che khuất
   },
   welcomeContainer: {
     backgroundColor: COLORS.white,
@@ -1101,7 +1310,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.grayMedium,
-    alignItems: 'flex-end', // Căn chỉnh để input box và nút gửi thẳng hàng
+    alignItems: 'flex-end',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
   input: {
     flex: 1,
@@ -1111,6 +1325,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
     fontSize: 16,
+    maxHeight: 120,
   },
   sendButton: {
     width: 40,
