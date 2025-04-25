@@ -119,7 +119,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       setMessages([]);
     }
   };
-  
   // Lưu hội thoại hiện tại
   const saveCurrentConversation = async () => {
     if (!currentConversationId || messages.length === 0) return;
@@ -258,13 +257,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   const handleSend = async () => {
     if (!input.trim()) return;
     
-    // Tự động tạo hội thoại mới nếu chưa có
-    if (!currentConversationId) {
-      createNewConversation();
-      // Đợi một chút để đảm bảo hội thoại mới được tạo
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
     // Thêm tin nhắn người dùng
     const userMessage = { 
       id: Date.now().toString(), 
@@ -273,8 +265,16 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       timestamp: new Date().toISOString()
     };
     
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    // Tự động tạo hội thoại mới nếu chưa có
+    if (!currentConversationId) {
+      createNewConversation();
+      // Đợi một chút để đảm bảo hội thoại mới được tạo
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setMessages([userMessage]);
+    } else {
+      setMessages([...messages, userMessage]);
+    }
+    
     setInput('');
     Keyboard.dismiss();
     
@@ -295,7 +295,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       };
       
       // Phân tích yêu cầu người dùng
-      const agentResponse = await AgentSystem.coordinateAgents(input.trim(), context);
+      const agentResponse = await AgentSystem.coordinateAgents(userMessage.text, context);
       
       // Tạo tin nhắn từ AI
       const botMessage = {
@@ -309,8 +309,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       };
       
       // Thêm tin nhắn bot
-      const finalMessages = [...updatedMessages, botMessage];
-      setMessages(finalMessages);
+      setMessages(currentMessages => [...currentMessages, botMessage]);
       
       // Lưu hội thoại
       setTimeout(() => {
@@ -328,7 +327,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
         timestamp: new Date().toISOString()
       };
       
-      setMessages([...updatedMessages, errorMessage]);
+      setMessages(currentMessages => [...currentMessages, errorMessage]);
     } finally {
       setIsLoading(false);
       
@@ -396,31 +395,22 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       createNewConversation();
       setTimeout(() => {
         setMessages([userMessage]);
-        handleScanDataAnalysis(userMessage);
+        handleScanDataAnalysis();
       }, 300);
     } else {
-      const updatedMessages = [...messages, userMessage];
-      setMessages(updatedMessages);
-      handleScanDataAnalysis(userMessage, updatedMessages);
+      setMessages(currentMessages => [...currentMessages, userMessage]);
+      handleScanDataAnalysis();
     }
   };
   
   // Xử lý phân tích dữ liệu quét
-  const handleScanDataAnalysis = async (userMessage, currentMessages = [messages]) => {
+  const handleScanDataAnalysis = async () => {
     setIsLoading(true);
     // Cuộn xuống tin nhắn mới
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-    
     try {
-      // Chuẩn bị ngữ cảnh với dữ liệu quét
-      const context = {
-        scanHistory: scanHistory || [],
-        historyStats: historyStats || {},
-        previousMessages: currentMessages
-      };
-      
       // Tạo phân tích dữ liệu quét
       let analysisText = "**Phân tích dữ liệu quét lá cà phê của bạn**\n\n";
       
@@ -508,8 +498,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       };
       
       // Thêm tin nhắn bot
-      const updatedMessages = userMessage ? [...currentMessages, botMessage] : [...messages, botMessage];
-      setMessages(updatedMessages);
+      setMessages(currentMessages => [...currentMessages, botMessage]);
       
       // Lưu hội thoại
       setTimeout(() => {
@@ -527,8 +516,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
         timestamp: new Date().toISOString()
       };
       
-      const updatedMessages = userMessage ? [...currentMessages, errorMessage] : [...messages, errorMessage];
-      setMessages(updatedMessages);
+      setMessages(currentMessages => [...currentMessages, errorMessage]);
     } finally {
       setIsLoading(false);
       
@@ -863,7 +851,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                 {/* Show feedback if already given */}
                 {!message.isUser && message.feedback && (
                   <View style={styles.feedbackGiven}>
-                    <Text style={styles.feedbackGivenText}>
+                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
                       <FontAwesome5 
                         name={
                           message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? 'thumbs-up' : 'thumbs-down'
@@ -873,8 +861,8 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                           message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? COLORS.success : COLORS.danger
                         } 
                       />
-                      <Text> Bạn đã đánh giá đề xuất này</Text>
-                    </Text>
+                      <Text style={styles.feedbackGivenText}> Bạn đã đánh giá đề xuất này</Text>
+                    </View>
                   </View>
                 )}
               </View>
@@ -919,7 +907,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     </KeyboardAvoidingView>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1133,7 +1120,7 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 15,
-    paddingBottom: 90, // Thêm padding phía dưới để đảm bảo nội dung không bị che khuất
+    paddingBottom: 90,
   },
   welcomeContainer: {
     backgroundColor: COLORS.white,
@@ -1342,3 +1329,4 @@ const styles = StyleSheet.create({
 });
 
 export default AdvisorTab;
+                  
