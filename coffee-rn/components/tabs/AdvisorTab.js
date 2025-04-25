@@ -32,8 +32,8 @@ const STORAGE_KEY = 'advisor_conversations';
 
 // Biểu tượng cho các agents
 const AGENT_ICONS = {
-  summary: 'chart-pie',
-  detailed: 'book-open',
+  analysis: 'chart-pie',
+  treatment: 'book-medical',
   system: 'robot',
   error: 'exclamation-triangle'
 };
@@ -45,9 +45,9 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [showHistory, setShowHistory] = useState(true);
-  const [userContext, setUserContext] = useState(null);
   
   const scrollViewRef = useRef();
+  const inputRef = useRef();
   
   // Load hội thoại hiện tại khi ID thay đổi
   useEffect(() => {
@@ -59,18 +59,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   // Load danh sách hội thoại khi mở tab
   useEffect(() => {
     loadConversations();
-    loadUserContext();
   }, []);
-  
-  // Load ngữ cảnh người dùng
-  const loadUserContext = async () => {
-    try {
-      const context = await InteractionMemoryService.getUserContext();
-      setUserContext(context);
-    } catch (error) {
-      console.error('Lỗi khi tải ngữ cảnh người dùng:', error);
-    }
-  };
   
   // Load danh sách hội thoại từ AsyncStorage
   const loadConversations = async () => {
@@ -242,7 +231,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
         id: Date.now().toString(),
         text: agentResponse.message,
         isUser: false,
-        type: agentResponse.type,
+        type: agentResponse.type || 'treatment',
         intent: agentResponse.intent,
         recommendationId: agentResponse.recommendationId,
         timestamp: new Date().toISOString()
@@ -306,8 +295,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       // Thông báo
       Alert.alert('Cảm ơn bạn!', 'Phản hồi của bạn giúp tôi cải thiện đề xuất trong tương lai.');
       
-      // Làm mới ngữ cảnh người dùng
-      loadUserContext();
     } catch (error) {
       console.error('Lỗi khi lưu phản hồi:', error);
       Alert.alert('Lỗi', 'Không thể lưu phản hồi. Vui lòng thử lại sau.');
@@ -319,16 +306,165 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     setShowHistory(true);
     loadConversations();
   };
+
+  // Phân tích dữ liệu quét lá
+  const analyzeScanData = () => {
+    if (!scanHistory || scanHistory.length === 0) {
+      Alert.alert('Thông báo', 'Chưa có dữ liệu quét để phân tích. Vui lòng quét một số lá cây trước.');
+      return;
+    }
+    
+    const userMessage = { 
+      id: Date.now().toString(), 
+      text: "Phân tích dữ liệu quét của tôi và đưa ra đề xuất", 
+      isUser: true,
+      timestamp: new Date().toISOString()
+    };
+    
+    if (!currentConversationId) {
+      createNewConversation();
+      setTimeout(() => {
+        setMessages([userMessage]);
+        handleScanDataAnalysis(userMessage);
+      }, 300);
+    } else {
+      const updatedMessages = [...messages, userMessage];
+      setMessages(updatedMessages);
+      handleScanDataAnalysis(userMessage, updatedMessages);
+    }
+  };
   
-  // Cập nhật sở thích người dùng
-  const updatePreference = async (detailLevel) => {
+  // Xử lý phân tích dữ liệu quét
+  const handleScanDataAnalysis = async (userMessage, currentMessages = [messages]) => {
+    setIsLoading(true);
+    // Cuộn xuống tin nhắn mới
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+    
     try {
-      await AgentSystem.updateUserPreference(detailLevel);
-      loadUserContext();
-      Alert.alert('Thành công', `Đã cập nhật sở thích của bạn sang mức độ chi tiết: ${detailLevel}`);
+      // Chuẩn bị ngữ cảnh với dữ liệu quét
+      const context = {
+        scanHistory: scanHistory || [],
+        historyStats: historyStats || {},
+        previousMessages: currentMessages
+      };
+      
+      // Tạo phân tích dữ liệu quét
+      let analysisText = "**Phân tích dữ liệu quét lá cà phê của bạn**\n\n";
+      
+      // Tổng quan
+      analysisText += `Tôi đã phân tích ${scanHistory.length} mẫu lá cà phê từ dữ liệu quét của bạn.\n\n`;
+      analysisText += `📊 **Tổng quan sức khỏe vườn cây:**\n`;
+      analysisText += `• Cây khỏe mạnh: ${historyStats.healthyTrees} mẫu (${Math.round(historyStats.healthyTrees/scanHistory.length*100)}%)\n`;
+      analysisText += `• Cây có bệnh: ${historyStats.diseasedTrees} mẫu (${Math.round(historyStats.diseasedTrees/scanHistory.length*100)}%)\n\n`;
+      
+      // Chi tiết các loại bệnh nếu có
+      if (historyStats.diseasedTrees > 0 && Object.keys(historyStats.diseases || {}).length > 0) {
+        analysisText += `🔍 **Chi tiết các loại bệnh phát hiện:**\n`;
+        Object.entries(historyStats.diseases).forEach(([disease, count]) => {
+          const percentage = Math.round((count / scanHistory.length) * 100);
+          analysisText += `• ${disease}: ${count} mẫu (${percentage}%)\n`;
+        });
+        analysisText += `\n`;
+        
+        // Đề xuất xử lý cho bệnh phổ biến nhất
+        const mostCommonDisease = Object.entries(historyStats.diseases)
+          .sort((a, b) => b[1] - a[1])[0][0];
+        
+        analysisText += `⚠️ **Cảnh báo và đề xuất:**\n`;
+        
+        if (mostCommonDisease === 'Gỉ sắt') {
+          analysisText += `Bệnh gỉ sắt đang là vấn đề chính trong vườn cây của bạn. Đây là loại bệnh nấm phổ biến trên cây cà phê và có thể lây lan nhanh chóng trong điều kiện ẩm ướt.\n\n`;
+          analysisText += `**Đề xuất xử lý:**\n`;
+          analysisText += `1. Phun thuốc fungicide chứa đồng (copper) hoặc mancozeb theo hướng dẫn\n`;
+          analysisText += `2. Cắt tỉa các cành bị bệnh nặng và tiêu hủy\n`;
+          analysisText += `3. Cải thiện thông gió trong vườn bằng cách cắt tỉa thích hợp\n`;
+          analysisText += `4. Kiểm soát độ ẩm, tránh tưới quá nhiều và tưới vào gốc thay vì lá\n`;
+        } 
+        else if (mostCommonDisease === 'Phoma') {
+          analysisText += `Bệnh phoma đang là vấn đề chính trong vườn cây của bạn. Bệnh này thường xuất hiện trong điều kiện nhiệt độ thấp và ẩm ướt.\n\n`;
+          analysisText += `**Đề xuất xử lý:**\n`;
+          analysisText += `1. Phun thuốc fungicide chứa azoxystrobin hoặc copper oxychloride\n`;
+          analysisText += `2. Cắt tỉa và loại bỏ các bộ phận bị nhiễm bệnh\n`;
+          analysisText += `3. Cải thiện thoát nước trong vườn\n`;
+          analysisText += `4. Bón phân cân đối để tăng sức đề kháng cho cây\n`;
+        }
+        else if (mostCommonDisease === 'Miner') {
+          analysisText += `Bệnh miner (sâu đục lá) đang là vấn đề chính trong vườn cây của bạn. Đây là loài côn trùng tấn công lá cà phê và tạo các đường hầm bên trong lá.\n\n`;
+          analysisText += `**Đề xuất xử lý:**\n`;
+          analysisText += `1. Sử dụng thuốc trừ sâu hệ thống chứa imidacloprid hoặc thiamethoxam\n`;
+          analysisText += `2. Thả các thiên địch như ong ký sinh để kiểm soát tự nhiên\n`;
+          analysisText += `3. Loại bỏ và tiêu hủy lá bị nhiễm nặng\n`;
+          analysisText += `4. Giám sát thường xuyên để phát hiện sớm\n`;
+        }
+        else if (mostCommonDisease === 'Cerco') {
+          analysisText += `Bệnh đốm lá Cercospora đang là vấn đề chính trong vườn cây của bạn. Bệnh này thường liên quan đến tình trạng thiếu dinh dưỡng của cây.\n\n`;
+          analysisText += `**Đề xuất xử lý:**\n`;
+          analysisText += `1. Phun thuốc trừ nấm chứa copper hoặc mancozeb\n`;
+          analysisText += `2. Cải thiện dinh dưỡng cây trồng, đặc biệt là bổ sung đạm và kali\n`;
+          analysisText += `3. Tăng cường thoát nước để giảm độ ẩm\n`;
+          analysisText += `4. Cắt tỉa để cải thiện thông gió\n`;
+        }
+        else {
+          analysisText += `Có nhiều loại bệnh khác nhau trong vườn cây của bạn. Nên kiểm tra kỹ từng khu vực và có biện pháp xử lý phù hợp.\n\n`;
+          analysisText += `**Đề xuất xử lý:**\n`;
+          analysisText += `1. Phun thuốc trừ nấm phổ rộng định kỳ\n`;
+          analysisText += `2. Cải thiện điều kiện canh tác: thoát nước, ánh sáng, thông gió\n`;
+          analysisText += `3. Cắt tỉa và loại bỏ các bộ phận bị nhiễm bệnh\n`;
+          analysisText += `4. Bón phân cân đối để tăng sức đề kháng cho cây\n`;
+        }
+      } else if (historyStats.healthyTrees === scanHistory.length) {
+        analysisText += `✅ **Nhận xét:**\n`;
+        analysisText += `Tất cả các mẫu lá đều khỏe mạnh! Vườn cây của bạn đang trong tình trạng tốt.\n\n`;
+        analysisText += `**Đề xuất chăm sóc:**\n`;
+        analysisText += `1. Tiếp tục duy trì chế độ chăm sóc hiện tại\n`;
+        analysisText += `2. Thực hiện phun thuốc phòng bệnh định kỳ trước mùa mưa\n`;
+        analysisText += `3. Bón phân cân đối theo đúng lịch\n`;
+        analysisText += `4. Thực hiện cắt tỉa định kỳ để thông thoáng vườn cây\n`;
+      }
+      
+      analysisText += `\nBạn có thể hỏi tôi thêm để biết chi tiết về cách xử lý cụ thể cho từng loại bệnh.`;
+      
+      // Tạo tin nhắn phân tích
+      const botMessage = {
+        id: Date.now().toString(),
+        text: analysisText,
+        isUser: false,
+        type: 'analysis',
+        timestamp: new Date().toISOString(),
+        recommendationId: 'scan_analysis'
+      };
+      
+      // Thêm tin nhắn bot
+      const updatedMessages = userMessage ? [...currentMessages, botMessage] : [...messages, botMessage];
+      setMessages(updatedMessages);
+      
+      // Lưu hội thoại
+      setTimeout(() => {
+        saveCurrentConversation();
+      }, 500);
+      
     } catch (error) {
-      console.error('Lỗi khi cập nhật sở thích:', error);
-      Alert.alert('Lỗi', 'Không thể cập nhật sở thích. Vui lòng thử lại sau.');
+      console.error('Lỗi khi phân tích dữ liệu quét:', error);
+      // Thêm tin nhắn lỗi
+      const errorMessage = {
+        id: Date.now().toString(),
+        text: 'Xin lỗi, tôi gặp sự cố khi phân tích dữ liệu quét. Vui lòng thử lại sau.',
+        isUser: false,
+        type: 'error',
+        timestamp: new Date().toISOString()
+      };
+      
+      const updatedMessages = userMessage ? [...currentMessages, errorMessage] : [...messages, errorMessage];
+      setMessages(updatedMessages);
+    } finally {
+      setIsLoading(false);
+      
+      // Cuộn xuống tin nhắn mới
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
   };
 
@@ -336,13 +472,13 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
-      keyboardVerticalOffset={80}
+      keyboardVerticalOffset={90}
     >
       {showHistory ? (
         // Danh sách hội thoại
         <View style={styles.historyContainer}>
           <View style={styles.historyHeader}>
-            <Text style={styles.historyTitle}>Tư vấn chăm sóc cây</Text>
+            <Text style={styles.historyTitle}>Tư vấn</Text>
             <TouchableOpacity
               style={styles.newChatButton}
               onPress={createNewConversation}
@@ -352,53 +488,25 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
             </TouchableOpacity>
           </View>
           
-          {userContext && (
-            <View style={styles.preferencesBar}>
-              <Text style={styles.preferencesLabel}>Mức độ chi tiết:</Text>
-              <View style={styles.preferencesButtons}>
-                <TouchableOpacity 
-                  style={[
-                    styles.preferenceButton, 
-                    userContext.preferredDetailLevel === 'low' && styles.activePreferenceButton
-                  ]}
-                  onPress={() => updatePreference('low')}
-                >
-                  <Text style={[
-                    styles.preferenceButtonText,
-                    userContext.preferredDetailLevel === 'low' && styles.activePreferenceButtonText
-                  ]}>Đơn giản</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.preferenceButton, 
-                    userContext.preferredDetailLevel === 'medium' && styles.activePreferenceButton
-                  ]}
-                  onPress={() => updatePreference('medium')}
-                >
-                  <Text style={[
-                    styles.preferenceButtonText,
-                    userContext.preferredDetailLevel === 'medium' && styles.activePreferenceButtonText
-                  ]}>Cân bằng</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.preferenceButton, 
-                    userContext.preferredDetailLevel === 'high' && styles.activePreferenceButton
-                  ]}
-                  onPress={() => updatePreference('high')}
-                >
-                  <Text style={[
-                    styles.preferenceButtonText,
-                    userContext.preferredDetailLevel === 'high' && styles.activePreferenceButtonText
-                  ]}>Chi tiết</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          
           <ScrollView style={styles.conversationsList}>
+            {scanHistory && scanHistory.length > 0 && (
+              <TouchableOpacity
+                style={styles.scanAnalysisButton}
+                onPress={analyzeScanData}
+              >
+                <View style={styles.scanAnalysisIcon}>
+                  <FontAwesome5 name="leaf" size={20} color={COLORS.white} />
+                </View>
+                <View style={styles.scanAnalysisContent}>
+                  <Text style={styles.scanAnalysisTitle}>Phân tích dữ liệu quét</Text>
+                  <Text style={styles.scanAnalysisSubtitle}>
+                    {scanHistory.length} mẫu lá • {historyStats.healthyTrees || 0} khoẻ • {historyStats.diseasedTrees || 0} bệnh
+                  </Text>
+                </View>
+                <FontAwesome5 name="chevron-right" size={14} color={COLORS.primary} />
+              </TouchableOpacity>
+            )}
+
             {conversations.map(conversation => (
               <TouchableOpacity
                 key={conversation.id}
@@ -433,7 +541,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
               </TouchableOpacity>
             ))}
             
-            {conversations.length === 0 && (
+            {conversations.length === 0 && !scanHistory.length && (
               <View style={styles.emptyState}>
                 <FontAwesome5 name="comments" size={40} color={COLORS.grayMedium} />
                 <Text style={styles.emptyStateText}>Chưa có hội thoại nào</Text>
@@ -461,35 +569,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
             <Text style={styles.chatTitle}>
               {conversations.find(c => c.id === currentConversationId)?.title || 'Tư vấn'}
             </Text>
-            <TouchableOpacity
-              style={styles.userPreferencesButton}
-              onPress={() => {
-                Alert.alert(
-                  'Sở thích người dùng',
-                  'Chọn mức độ chi tiết bạn muốn nhận:',
-                  [
-                    {
-                      text: 'Đơn giản',
-                      onPress: () => updatePreference('low')
-                    },
-                    {
-                      text: 'Cân bằng',
-                      onPress: () => updatePreference('medium')
-                    },
-                    {
-                      text: 'Chi tiết',
-                      onPress: () => updatePreference('high')
-                    },
-                    {
-                      text: 'Hủy',
-                      style: 'cancel'
-                    }
-                  ]
-                );
-              }}
-            >
-              <FontAwesome5 name="sliders-h" size={18} color={COLORS.primary} />
-            </TouchableOpacity>
+            <View style={{width: 30}} /> {/* Để cân bằng header */}
           </View>
           
           <ScrollView
@@ -505,56 +585,53 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                 </View>
                 <Text style={styles.welcomeTitle}>Xin chào, tôi là trợ lý AI chăm sóc cây cà phê</Text>
                 <Text style={styles.welcomeText}>
-                  Tôi có hai chế độ tư vấn:
+                  Tôi có thể giúp bạn phân tích kết quả quét và đưa ra các đề xuất điều trị phù hợp.
                 </Text>
                 
                 <View style={styles.agentInfoContainer}>
                   <View style={styles.agentInfo}>
-                    <FontAwesome5 name={AGENT_ICONS.summary} size={24} color={COLORS.primary} style={styles.agentInfoIcon} />
+                    <FontAwesome5 name="leaf" size={24} color={COLORS.primary} style={styles.agentInfoIcon} />
                     <View style={styles.agentInfoContent}>
-                      <Text style={styles.agentInfoTitle}>Agent Tóm Tắt</Text>
-                      <Text style={styles.agentInfoDesc}>Cung cấp thông tin ngắn gọn, dễ hiểu</Text>
+                      <Text style={styles.agentInfoTitle}>Phân tích dữ liệu quét</Text>
+                      <Text style={styles.agentInfoDesc}>Cung cấp thông tin từ kết quả quét lá của bạn</Text>
                     </View>
                   </View>
                   
                   <View style={styles.agentInfo}>
-                    <FontAwesome5 name={AGENT_ICONS.detailed} size={24} color={COLORS.secondary} style={styles.agentInfoIcon} />
+                    <FontAwesome5 name="book-open" size={24} color={COLORS.secondary} style={styles.agentInfoIcon} />
                     <View style={styles.agentInfoContent}>
-                      <Text style={styles.agentInfoTitle}>Agent Chi Tiết</Text>
-                      <Text style={styles.agentInfoDesc}>Cung cấp thông tin chuyên sâu, đầy đủ</Text>
+                      <Text style={styles.agentInfoTitle}>Tư vấn điều trị</Text>
+                      <Text style={styles.agentInfoDesc}>Đề xuất phương pháp điều trị phù hợp</Text>
                     </View>
                   </View>
                 </View>
                 
                 <Text style={styles.welcomeText}>
-                  Tôi sẽ tự động chọn agent phù hợp với yêu cầu của bạn, hoặc bạn có thể chỉ định rõ mong muốn "tóm tắt" hoặc "chi tiết" trong câu hỏi.
+                  Bạn có thể hỏi tôi về cách xử lý bệnh hoặc yêu cầu phân tích dữ liệu từ các lá cây bạn đã quét.
                 </Text>
                 
                 <View style={styles.suggestionsContainer}>
                   <TouchableOpacity 
                     style={styles.suggestionButton}
-                    onPress={() => {
-                      setInput('Tóm tắt cách xử lý bệnh gỉ sắt');
-                      setTimeout(() => handleSend(), 100);
-                    }}
+                    onPress={analyzeScanData}
                   >
-                    <Text style={styles.suggestionText}>Tóm tắt về bệnh gỉ sắt</Text>
+                    <Text style={styles.suggestionText}>Phân tích dữ liệu quét của tôi</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
                     style={styles.suggestionButton}
                     onPress={() => {
-                      setInput('Chi tiết về kỹ thuật tưới nước');
+                      setInput('Cách xử lý bệnh gỉ sắt');
                       setTimeout(() => handleSend(), 100);
                     }}
                   >
-                    <Text style={styles.suggestionText}>Chi tiết về tưới nước</Text>
+                    <Text style={styles.suggestionText}>Cách xử lý bệnh gỉ sắt</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
                     style={styles.suggestionButton}
                     onPress={() => {
-                      setInput('Làm thế nào để cắt tỉa cây cà phê?');
+                      setInput('Kỹ thuật cắt tỉa cây cà phê');
                       setTimeout(() => handleSend(), 100);
                     }}
                   >
@@ -578,14 +655,14 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                     <FontAwesome5 
                       name={AGENT_ICONS[message.type] || 'robot'} 
                       size={12} 
-                      color={message.type === 'summary' ? COLORS.primary : COLORS.secondary} 
+                      color={message.type === 'analysis' ? COLORS.primary : COLORS.secondary} 
                     />
                     <Text style={[
                       styles.agentTypeText,
-                      { color: message.type === 'summary' ? COLORS.primary : COLORS.secondary }
+                      { color: message.type === 'analysis' ? COLORS.primary : COLORS.secondary }
                     ]}>
-                      {message.type === 'summary' ? 'Agent Tóm Tắt' : 
-                       message.type === 'detailed' ? 'Agent Chi Tiết' : 
+                      {message.type === 'analysis' ? 'Phân tích dữ liệu' : 
+                       message.type === 'treatment' ? 'Tư vấn điều trị' : 
                        'Hệ thống'}
                     </Text>
                   </View>
@@ -620,18 +697,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                         onPress={() => handleFeedback(
                           message.id, 
                           message.recommendationId,
-                          { level: FEEDBACK_LEVELS.NEUTRAL }
-                        )}
-                      >
-                        <FontAwesome5 name="meh" size={14} color={COLORS.gray} />
-                        <Text style={styles.feedbackButtonText}>Bình thường</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity 
-                        style={styles.feedbackButton}
-                        onPress={() => handleFeedback(
-                          message.id, 
-                          message.recommendationId,
                           { level: FEEDBACK_LEVELS.NEGATIVE, success: false }
                         )}
                       >
@@ -648,13 +713,11 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                     <Text style={styles.feedbackGivenText}>
                       <FontAwesome5 
                         name={
-                          message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? 'thumbs-up' :
-                          message.feedback.level === FEEDBACK_LEVELS.NEGATIVE ? 'thumbs-down' : 'meh'
+                          message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? 'thumbs-up' : 'thumbs-down'
                         } 
                         size={12} 
                         color={
-                          message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? COLORS.success :
-                          message.feedback.level === FEEDBACK_LEVELS.NEGATIVE ? COLORS.danger : COLORS.gray
+                          message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? COLORS.success : COLORS.danger
                         } 
                       /> Bạn đã đánh giá đề xuất này
                     </Text>
@@ -674,11 +737,13 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
           
           <View style={styles.inputContainer}>
             <TextInput
+              ref={inputRef}
               style={styles.input}
               placeholder="Hỏi về chăm sóc cây cà phê..."
               value={input}
               onChangeText={setInput}
               multiline
+              maxHeight={80}
             />
             <TouchableOpacity
               style={[
@@ -720,7 +785,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.grayMedium,
   },
   historyTitle: {
-    fontSize: 20,
+    fontSize: 18,  // Giảm kích thước tiêu đề
     fontWeight: 'bold',
     color: COLORS.text,
   },
@@ -737,46 +802,38 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     fontSize: 14,
   },
-  preferencesBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    backgroundColor: COLORS.grayLight,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.grayMedium,
-  },
-  preferencesLabel: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginRight: 10,
-  },
-  preferencesButtons: {
-    flexDirection: 'row',
-  },
-  preferenceButton: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 15,
-    marginHorizontal: 5,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.grayMedium,
-  },
-  activePreferenceButton: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  preferenceButtonText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  activePreferenceButtonText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-  },
   conversationsList: {
     flex: 1,
+  },
+  scanAnalysisButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: COLORS.primaryLight,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.grayLight,
+  },
+  scanAnalysisIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  scanAnalysisContent: {
+    flex: 1,
+  },
+  scanAnalysisTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: COLORS.primary,
+    marginBottom: 3,
+  },
+  scanAnalysisSubtitle: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
   },
   conversationItem: {
     flexDirection: 'row',
@@ -860,9 +917,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.text,
     flex: 1,
-  },
-  userPreferencesButton: {
-    padding: 8,
   },
   messagesContainer: {
     flex: 1,
@@ -1019,13 +1073,14 @@ const styles = StyleSheet.create({
   feedbackButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 15,
     backgroundColor: COLORS.grayLight,
+    marginRight: 8,
   },
   feedbackButtonText: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     marginLeft: 5,
   },
@@ -1046,15 +1101,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.grayMedium,
-    alignItems: 'center',
+    alignItems: 'flex-end', // Căn chỉnh để input box và nút gửi thẳng hàng
   },
   input: {
     flex: 1,
     backgroundColor: COLORS.grayLight,
     borderRadius: 20,
     paddingHorizontal: 15,
-    paddingVertical: 8,
-    maxHeight: 100,
+    paddingTop: 8,
+    paddingBottom: 8,
     fontSize: 16,
   },
   sendButton: {
