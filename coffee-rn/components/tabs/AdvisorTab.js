@@ -1,4 +1,5 @@
 // components/tabs/AdvisorTab.js
+// components/tabs/AdvisorTab.js
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
@@ -526,386 +527,461 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       }, 100);
     }
   };
+  
+  const renderMessages = () => {
+    if (!messages || messages.length === 0) return null;
+    
+    return (
+      <>
+        {messages.map((message) => (
+          <View 
+            key={message.id} 
+            style={[
+              styles.messageBubble,
+              message.isUser ? styles.userBubble : styles.botBubble
+            ]}
+          >
+            {!message.isUser && message.type && (
+              <View style={styles.agentTypeTag}>
+                <FontAwesome5 
+                  name={AGENT_ICONS[message.type] || 'robot'} 
+                  size={12} 
+                  color={message.type === 'analysis' ? COLORS.primary : COLORS.secondary} 
+                />
+                <Text style={[
+                  styles.agentTypeText,
+                  { color: message.type === 'analysis' ? COLORS.primary : COLORS.secondary }
+                ]}>
+                  {message.type === 'analysis' ? 'Phân tích dữ liệu' : 
+                   message.type === 'treatment' ? 'Tư vấn điều trị' : 
+                   'Hệ thống'}
+                </Text>
+              </View>
+            )}
+            
+            <Text style={[
+              styles.messageText,
+              message.isUser ? styles.userMessageText : styles.botMessageText
+            ]}>
+              {message.text}
+            </Text>
+            
+            {/* Feedback buttons for recommendations */}
+            {!message.isUser && message.recommendationId && !message.feedback && (
+              <View style={styles.feedbackContainer}>
+                <Text style={styles.feedbackQuestion}>Đề xuất này có hữu ích không?</Text>
+                <View style={styles.feedbackButtons}>
+                  <TouchableOpacity 
+                    style={styles.feedbackButton}
+                    onPress={() => handleFeedback(
+                      message.id, 
+                      message.recommendationId,
+                      { level: FEEDBACK_LEVELS.POSITIVE, success: true }
+                    )}
+                  >
+                    <FontAwesome5 name="thumbs-up" size={14} color={COLORS.success} />
+                    <Text style={styles.feedbackButtonText}>Có, rất hữu ích</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.feedbackButton}
+                    onPress={() => handleFeedback(
+                      message.id, 
+                      message.recommendationId,
+                      { level: FEEDBACK_LEVELS.NEGATIVE, success: false }
+                    )}
+                  >
+                    <FontAwesome5 name="thumbs-down" size={14} color={COLORS.danger} />
+                    <Text style={styles.feedbackButtonText}>Không hữu ích</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            
+            {/* Show feedback if already given */}
+            {!message.isUser && message.feedback && (
+              <View style={styles.feedbackGiven}>
+                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                  <FontAwesome5 
+                    name={
+                      message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? 'thumbs-up' : 'thumbs-down'
+                    } 
+                    size={12} 
+                    color={
+                      message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? COLORS.success : COLORS.danger
+                    } 
+                  />
+                  <Text style={styles.feedbackGivenText}> Bạn đã đánh giá đề xuất này</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        ))}
+        
+        {/* Loading indicator */}
+        {isLoading && (
+          <View style={styles.loadingBubble}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Đang soạn tin nhắn...</Text>
+          </View>
+        )}
+      </>
+    );
+  };
 
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-      keyboardVerticalOffset={90}
-    >
-      {showHistory ? (
-        // Danh sách hội thoại
-        <View style={styles.historyContainer}>
-          <View style={styles.historyHeader}>
-            <Text style={styles.historyTitle}>Tư vấn</Text>
-            <View style={styles.headerButtons}>
-              {isSelectMode ? (
-                <>
-                  <TouchableOpacity
-                    style={[styles.headerButton, styles.cancelButton]}
-                    onPress={() => {
-                      setIsSelectMode(false);
-                      setSelectedConversations([]);
-                    }}
-                  >
-                    <Text style={styles.cancelButtonText}>Hủy</Text>
-                  </TouchableOpacity>
-                  
-                  {selectedConversations.length > 0 && (
-                    <TouchableOpacity
-                      style={[styles.headerButton, styles.deleteButton]}
-                      onPress={() => {
-                        Alert.alert(
-                          'Xác nhận xóa',
-                          `Bạn có chắc chắn muốn xóa ${selectedConversations.length} hội thoại đã chọn?`,
-                          [
-                            {
-                              text: 'Hủy',
-                              style: 'cancel'
-                            },
-                            {
-                              text: 'Xóa',
-                              style: 'destructive',
-                              onPress: async () => {
-                                const success = await deleteMultipleConversations();
-                                if (success) {
-                                  Alert.alert('Thành công', 'Đã xóa các hội thoại đã chọn.');
-                                } else {
-                                  Alert.alert('Lỗi', 'Không thể xóa hội thoại. Vui lòng thử lại sau.');
-                                }
-                              }
-                            }
-                          ]
-                        );
-                      }}
-                    >
-                      <FontAwesome5 name="trash" size={14} color={COLORS.white} />
-                      <Text style={styles.deleteButtonText}>Xóa ({selectedConversations.length})</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              ) : (
-                <>
-                  {conversations.length > 1 && (
-                    <TouchableOpacity
-                      style={[styles.headerButton, styles.selectButton]}
-                      onPress={() => setIsSelectMode(true)}
-                    >
-                      <FontAwesome5 name="check-square" size={14} color={COLORS.white} />
-                      <Text style={styles.selectButtonText}>Chọn</Text>
-                    </TouchableOpacity>
-                  )}
-                  
-                  <TouchableOpacity
-                    style={[styles.headerButton, styles.newChatButton]}
-                    onPress={createNewConversation}
-                  >
-                    <FontAwesome5 name="plus" size={14} color={COLORS.white} />
-                    <Text style={styles.newChatButtonText}>Mới</Text>
-                  </TouchableOpacity>
-                </>
-              )}
+  // Render message chào mừng khi không có tin nhắn
+  const renderWelcomeMessage = () => {
+    return (
+      <View style={styles.welcomeContainer}>
+        <View style={styles.agentIconContainer}>
+          <FontAwesome5 name="user-md" size={30} color={COLORS.primary} />
+        </View>
+        <Text style={styles.welcomeTitle}>Xin chào, tôi là trợ lý AI chăm sóc cây cà phê</Text>
+        <Text style={styles.welcomeText}>
+          Tôi có thể giúp bạn phân tích kết quả quét và đưa ra các đề xuất điều trị phù hợp.
+        </Text>
+        
+        <View style={styles.agentInfoContainer}>
+          <View style={styles.agentInfo}>
+            <FontAwesome5 name="leaf" size={24} color={COLORS.primary} style={styles.agentInfoIcon} />
+            <View style={styles.agentInfoContent}>
+              <Text style={styles.agentInfoTitle}>Phân tích dữ liệu quét</Text>
+              <Text style={styles.agentInfoDesc}>Cung cấp thông tin từ kết quả quét lá của bạn</Text>
             </View>
           </View>
           
-          <ScrollView style={styles.conversationsList}>
-            {scanHistory && scanHistory.length > 0 && (
-              <TouchableOpacity
-                style={styles.scanAnalysisButton}
-                onPress={analyzeScanData}
-                disabled={isSelectMode}
-              >
-                <View style={styles.scanAnalysisIcon}>
-                  <FontAwesome5 name="leaf" size={20} color={COLORS.white} />
-                </View>
-                <View style={styles.scanAnalysisContent}>
-                  <Text style={styles.scanAnalysisTitle}>Phân tích dữ liệu quét</Text>
-                  <Text style={styles.scanAnalysisSubtitle}>
-                    {scanHistory.length} mẫu lá • {historyStats.healthyTrees || 0} khoẻ • {historyStats.diseasedTrees || 0} bệnh
-                  </Text>
-                </View>
-                <FontAwesome5 name="chevron-right" size={14} color={COLORS.primary} />
-              </TouchableOpacity>
-            )}
-
-            {conversations.map(conversation => (
-              <TouchableOpacity
-                key={conversation.id}
-                style={[
-                  styles.conversationItem,
-                  selectedConversations.includes(conversation.id) && styles.selectedConversationItem
-                ]}
-                onPress={() => {
-                  if (isSelectMode) {
-                    toggleSelectConversation(conversation.id);
-                  } else {
-                    setCurrentConversationId(conversation.id);
-                  }
-                }}
-                onLongPress={() => {
-                  if (!isSelectMode) {
-                    setIsSelectMode(true);
-                    setSelectedConversations([conversation.id]);
-                  }
-                }}
-              >
-                {isSelectMode ? (
-                  <View style={styles.checkboxContainer}>
-                    <View 
-                      style={[
-                        styles.checkbox,
-                        selectedConversations.includes(conversation.id) && styles.checkboxSelected
-                      ]}
-                    >
-                      {selectedConversations.includes(conversation.id) && (
-                        <FontAwesome5 name="check" size={12} color={COLORS.white} />
-                      )}
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.conversationIcon}>
-                    <FontAwesome5 name="comment" size={20} color={COLORS.primary} />
-                  </View>
-                )}
-                
-                <View style={styles.conversationContent}>
-                  <Text style={styles.conversationTitle}>{conversation.title}</Text>
-                  <Text style={styles.conversationPreview}>{conversation.lastMessage}</Text>
-                </View>
-                
-                {!isSelectMode && (
-                  <Text style={styles.conversationTime}>{conversation.time}</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-            
-            {conversations.length === 0 && !scanHistory.length && (
-              <View style={styles.emptyState}>
-                <FontAwesome5 name="comments" size={40} color={COLORS.grayMedium} />
-                <Text style={styles.emptyStateText}>Chưa có hội thoại nào</Text>
-                <Text style={styles.emptyStateSubtext}>Bắt đầu một cuộc trò chuyện mới để nhận tư vấn</Text>
-              </View>
-            )}
-          </ScrollView>
-          
-          <View style={styles.bottomInfo}>
-            <Text style={styles.bottomInfoText}>
-              Gợi ý: Hỏi về cách xử lý bệnh gỉ sắt, phân bón, hay kỹ thuật cắt tỉa
-            </Text>
+          <View style={styles.agentInfo}>
+            <FontAwesome5 name="book-open" size={24} color={COLORS.secondary} style={styles.agentInfoIcon} />
+            <View style={styles.agentInfoContent}>
+              <Text style={styles.agentInfoTitle}>Tư vấn điều trị</Text>
+              <Text style={styles.agentInfoDesc}>Đề xuất phương pháp điều trị phù hợp</Text>
+            </View>
           </View>
         </View>
-      ) : (
-        // Giao diện chat
-        <View style={styles.chatContainer}>
-          <View style={styles.chatHeader}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={backToHistory}
-            >
-              <FontAwesome5 name="arrow-left" size={18} color={COLORS.primary} />
-            </TouchableOpacity>
-            <Text style={styles.chatTitle}>
-              {conversations.find(c => c.id === currentConversationId)?.title || 'Tư vấn'}
-            </Text>
-            <View style={{width: 30}} /> {/* Để cân bằng header */}
-          </View>
-          
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.messagesContainer}
-            contentContainerStyle={[
-              styles.messagesContent,
-              { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 90 }
-            ]}
+        
+        <Text style={styles.welcomeText}>
+          Bạn có thể hỏi tôi về cách xử lý bệnh hoặc yêu cầu phân tích dữ liệu từ các lá cây bạn đã quét.
+        </Text>
+        
+        <View style={styles.suggestionsContainer}>
+          <TouchableOpacity 
+            style={styles.suggestionButton}
+            onPress={analyzeScanData}
           >
-            {/* Welcome message if no messages */}
-            {messages.length === 0 && (
-              <View style={styles.welcomeContainer}>
-                <View style={styles.agentIconContainer}>
-                  <FontAwesome5 name="user-md" size={30} color={COLORS.primary} />
-                </View>
-                <Text style={styles.welcomeTitle}>Xin chào, tôi là trợ lý AI chăm sóc cây cà phê</Text>
-                <Text style={styles.welcomeText}>
-                  Tôi có thể giúp bạn phân tích kết quả quét và đưa ra các đề xuất điều trị phù hợp.
-                </Text>
-                
-                <View style={styles.agentInfoContainer}>
-                  <View style={styles.agentInfo}>
-                    <FontAwesome5 name="leaf" size={24} color={COLORS.primary} style={styles.agentInfoIcon} />
-                    <View style={styles.agentInfoContent}>
-                      <Text style={styles.agentInfoTitle}>Phân tích dữ liệu quét</Text>
-                      <Text style={styles.agentInfoDesc}>Cung cấp thông tin từ kết quả quét lá của bạn</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.agentInfo}>
-                    <FontAwesome5 name="book-open" size={24} color={COLORS.secondary} style={styles.agentInfoIcon} />
-                    <View style={styles.agentInfoContent}>
-                      <Text style={styles.agentInfoTitle}>Tư vấn điều trị</Text>
-                      <Text style={styles.agentInfoDesc}>Đề xuất phương pháp điều trị phù hợp</Text>
-                    </View>
-                  </View>
-                </View>
-                
-                <Text style={styles.welcomeText}>
-                  Bạn có thể hỏi tôi về cách xử lý bệnh hoặc yêu cầu phân tích dữ liệu từ các lá cây bạn đã quét.
-                </Text>
-                
-                <View style={styles.suggestionsContainer}>
-                  <TouchableOpacity 
-                    style={styles.suggestionButton}
-                    onPress={analyzeScanData}
-                  >
-                    <Text style={styles.suggestionText}>Phân tích dữ liệu quét của tôi</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.suggestionButton}
-                    onPress={() => {
-                      setInput('Cách xử lý bệnh gỉ sắt');
-                      setTimeout(() => handleSend(), 100);
-                    }}
-                  >
-                    <Text style={styles.suggestionText}>Cách xử lý bệnh gỉ sắt</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.suggestionButton}
-                    onPress={() => {
-                      setInput('Kỹ thuật cắt tỉa cây cà phê');
-                      setTimeout(() => handleSend(), 100);
-                    }}
-                  >
-                    <Text style={styles.suggestionText}>Kỹ thuật cắt tỉa</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            
-            {/* Message bubbles */}
-            {messages.map((message) => (
-              <View 
-                key={message.id} 
-                style={[
-                  styles.messageBubble,
-                  message.isUser ? styles.userBubble : styles.botBubble
-                ]}
-              >
-                {!message.isUser && message.type && (
-                  <View style={styles.agentTypeTag}>
-                    <FontAwesome5 
-                      name={AGENT_ICONS[message.type] || 'robot'} 
-                      size={12} 
-                      color={message.type === 'analysis' ? COLORS.primary : COLORS.secondary} 
-                    />
-                    <Text style={[
-                      styles.agentTypeText,
-                      { color: message.type === 'analysis' ? COLORS.primary : COLORS.secondary }
-                    ]}>
-                      {message.type === 'analysis' ? 'Phân tích dữ liệu' : 
-                       message.type === 'treatment' ? 'Tư vấn điều trị' : 
-                       'Hệ thống'}
-                    </Text>
-                  </View>
-                )}
-                
-                <Text style={[
-                  styles.messageText,
-                  message.isUser ? styles.userMessageText : styles.botMessageText
-                ]}>
-                  {message.text}
-                </Text>
-                
-                {/* Feedback buttons for recommendations */}
-                {!message.isUser && message.recommendationId && !message.feedback && (
-                  <View style={styles.feedbackContainer}>
-                    <Text style={styles.feedbackQuestion}>Đề xuất này có hữu ích không?</Text>
-                    <View style={styles.feedbackButtons}>
-                      <TouchableOpacity 
-                        style={styles.feedbackButton}
-                        onPress={() => handleFeedback(
-                          message.id, 
-                          message.recommendationId,
-                          { level: FEEDBACK_LEVELS.POSITIVE, success: true }
-                        )}
-                      >
-                        <FontAwesome5 name="thumbs-up" size={14} color={COLORS.success} />
-                        <Text style={styles.feedbackButtonText}>Có, rất hữu ích</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity 
-                        style={styles.feedbackButton}
-                        onPress={() => handleFeedback(
-                          message.id, 
-                          message.recommendationId,
-                          { level: FEEDBACK_LEVELS.NEGATIVE, success: false }
-                        )}
-                      >
-                        <FontAwesome5 name="thumbs-down" size={14} color={COLORS.danger} />
-                        <Text style={styles.feedbackButtonText}>Không hữu ích</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-                
-                {/* Show feedback if already given */}
-                {!message.isUser && message.feedback && (
-                  <View style={styles.feedbackGiven}>
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                      <FontAwesome5 
-                        name={
-                          message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? 'thumbs-up' : 'thumbs-down'
-                        } 
-                        size={12} 
-                        color={
-                          message.feedback.level === FEEDBACK_LEVELS.POSITIVE ? COLORS.success : COLORS.danger
-                        } 
-                      />
-                      <Text style={styles.feedbackGivenText}> Bạn đã đánh giá đề xuất này</Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-            ))}
-            
-            {/* Loading indicator */}
-            {isLoading && (
-              <View style={styles.loadingBubble}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={styles.loadingText}>Đang soạn tin nhắn...</Text>
-              </View>
-            )}
-          </ScrollView>
+            <Text style={styles.suggestionText}>Phân tích dữ liệu quét của tôi</Text>
+          </TouchableOpacity>
           
-          <View style={styles.inputContainer}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              placeholder="Hỏi về chăm sóc cây cà phê..."
-              value={input}
-              onChangeText={setInput}
-              multiline
-              maxHeight={80}
-            />
-            <TouchableOpacity
-              style={[
-                styles.sendButton,
-                !input.trim() && styles.disabledButton
-              ]}
-              onPress={handleSend}
-              disabled={!input.trim() || isLoading}
-            >
-              <FontAwesome5 
-                name="paper-plane" 
-                size={18} 
-                color={input.trim() ? COLORS.white : COLORS.grayMedium} 
-              />
-            </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.suggestionButton}
+            onPress={() => {
+              setInput('Cách xử lý bệnh gỉ sắt');
+              setTimeout(() => handleSend(), 100);
+            }}
+          >
+            <Text style={styles.suggestionText}>Cách xử lý bệnh gỉ sắt</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.suggestionButton}
+            onPress={() => {
+              setInput('Kỹ thuật cắt tỉa cây cà phê');
+              setTimeout(() => handleSend(), 100);
+            }}
+          >
+            <Text style={styles.suggestionText}>Kỹ thuật cắt tỉa</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+// Sửa phần return trong component để sử dụng renderMessages
+return (
+  <KeyboardAvoidingView
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    style={styles.container}
+    keyboardVerticalOffset={90}
+  >
+    {showHistory ? (
+      // Danh sách hội thoại
+      <View style={styles.historyContainer}>
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle}>Tư vấn</Text>
+          <View style={styles.headerButtons}>
+            {isSelectMode ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.headerButton, styles.cancelButton]}
+                  onPress={() => {
+                    setIsSelectMode(false);
+                    setSelectedConversations([]);
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Hủy</Text>
+                </TouchableOpacity>
+                
+                {selectedConversations.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.headerButton, styles.deleteButton]}
+                    onPress={() => {
+                      Alert.alert(
+                        'Xác nhận xóa',
+                        `Bạn có chắc chắn muốn xóa ${selectedConversations.length} hội thoại đã chọn?`,
+                        [
+                          {
+                            text: 'Hủy',
+                            style: 'cancel'
+                          },
+                          {
+                            text: 'Xóa',
+                            style: 'destructive',
+                            onPress: async () => {
+                              const success = await deleteMultipleConversations();
+                              if (success) {
+                                Alert.alert('Thành công', 'Đã xóa các hội thoại đã chọn.');
+                              } else {
+                                Alert.alert('Lỗi', 'Không thể xóa hội thoại. Vui lòng thử lại sau.');
+                              }
+                            }
+                          }
+                        ]
+                      );
+                    }}
+                  >
+                    <FontAwesome5 name="trash" size={14} color={COLORS.white} />
+                    <Text style={styles.deleteButtonText}>Xóa ({selectedConversations.length})</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : (
+              <>
+                {conversations.length > 1 && (
+                  <TouchableOpacity
+                    style={[styles.headerButton, styles.selectButton]}
+                    onPress={() => setIsSelectMode(true)}
+                  >
+                    <FontAwesome5 name="check-square" size={14} color={COLORS.white} />
+                    <Text style={styles.selectButtonText}>Chọn</Text>
+                  </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity
+                  style={[styles.headerButton, styles.newChatButton]}
+                  onPress={createNewConversation}
+                >
+                  <FontAwesome5 name="plus" size={14} color={COLORS.white} />
+                  <Text style={styles.newChatButtonText}>Mới</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
-      )}
-    </KeyboardAvoidingView>
-  );
+        
+        <ScrollView style={styles.conversationsList}>
+          {scanHistory && scanHistory.length > 0 && (
+            <TouchableOpacity
+              style={styles.scanAnalysisButton}
+              onPress={analyzeScanData}
+              disabled={isSelectMode}
+            >
+              <View style={styles.scanAnalysisIcon}>
+                <FontAwesome5 name="leaf" size={20} color={COLORS.white} />
+              </View>
+              <View style={styles.scanAnalysisContent}>
+                <Text style={styles.scanAnalysisTitle}>Phân tích dữ liệu quét</Text>
+                <Text style={styles.scanAnalysisSubtitle}>
+                  {scanHistory.length} mẫu lá • {historyStats.healthyTrees || 0} khoẻ • {historyStats.diseasedTrees || 0} bệnh
+                </Text>
+              </View>
+              <FontAwesome5 name="chevron-right" size={14} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+
+          {conversations.map(conversation => (
+            <TouchableOpacity
+              key={conversation.id}
+              style={[
+                styles.conversationItem,
+                selectedConversations.includes(conversation.id) && styles.selectedConversationItem
+              ]}
+              onPress={() => {
+                if (isSelectMode) {
+                  toggleSelectConversation(conversation.id);
+                } else {
+                  setCurrentConversationId(conversation.id);
+                }
+              }}
+              onLongPress={() => {
+                if (!isSelectMode) {
+                  setIsSelectMode(true);
+                  setSelectedConversations([conversation.id]);
+                }
+              }}
+            >
+              {isSelectMode ? (
+                <View style={styles.checkboxContainer}>
+                  <View 
+                    style={[
+                      styles.checkbox,
+                      selectedConversations.includes(conversation.id) && styles.checkboxSelected
+                    ]}
+                  >
+                    {selectedConversations.includes(conversation.id) && (
+                      <FontAwesome5 name="check" size={12} color={COLORS.white} />
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.conversationIcon}>
+                  <FontAwesome5 name="comment" size={20} color={COLORS.primary} />
+                </View>
+              )}
+              
+              <View style={styles.conversationContent}>
+                <Text style={styles.conversationTitle}>{conversation.title}</Text>
+                <Text style={styles.conversationPreview}>{conversation.lastMessage}</Text>
+              </View>
+              
+              {!isSelectMode && (
+                <Text style={styles.conversationTime}>{conversation.time}</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+          
+          {conversations.length === 0 && !scanHistory.length && (
+            <View style={styles.emptyState}>
+              <FontAwesome5 name="comments" size={40} color={COLORS.grayMedium} />
+              <Text style={styles.emptyStateText}>Chưa có hội thoại nào</Text>
+              <Text style={styles.emptyStateSubtext}>Bắt đầu một cuộc trò chuyện mới để nhận tư vấn</Text>
+            </View>
+          )}
+        </ScrollView>
+        
+        <View style={styles.bottomInfo}>
+          <Text style={styles.bottomInfoText}>
+            Gợi ý: Hỏi về cách xử lý bệnh gỉ sắt, phân bón, hay kỹ thuật cắt tỉa
+          </Text>
+        </View>
+      </View>
+    ) : (
+      // Giao diện chat
+      <View style={styles.chatContainer}>
+        <View style={styles.chatHeader}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={backToHistory}
+          >
+            <FontAwesome5 name="arrow-left" size={18} color={COLORS.primary} />
+          </TouchableOpacity>
+          <Text style={styles.chatTitle}>
+            {conversations.find(c => c.id === currentConversationId)?.title || 'Tư vấn'}
+          </Text>
+          <View style={{width: 30}} /> {/* Để cân bằng header */}
+        </View>
+        
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={[
+            styles.messagesContent,
+            { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 90 }
+          ]}
+        >
+          {/* Welcome message if no messages */}
+          {messages.length === 0 && (
+            <View style={styles.welcomeContainer}>
+              <View style={styles.agentIconContainer}>
+                <FontAwesome5 name="user-md" size={30} color={COLORS.primary} />
+              </View>
+              <Text style={styles.welcomeTitle}>Xin chào, tôi là trợ lý AI chăm sóc cây cà phê</Text>
+              <Text style={styles.welcomeText}>
+                Tôi có thể giúp bạn phân tích kết quả quét và đưa ra các đề xuất điều trị phù hợp.
+              </Text>
+              
+              <View style={styles.agentInfoContainer}>
+                <View style={styles.agentInfo}>
+                  <FontAwesome5 name="leaf" size={24} color={COLORS.primary} style={styles.agentInfoIcon} />
+                  <View style={styles.agentInfoContent}>
+                    <Text style={styles.agentInfoTitle}>Phân tích dữ liệu quét</Text>
+                    <Text style={styles.agentInfoDesc}>Cung cấp thông tin từ kết quả quét lá của bạn</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.agentInfo}>
+                  <FontAwesome5 name="book-open" size={24} color={COLORS.secondary} style={styles.agentInfoIcon} />
+                  <View style={styles.agentInfoContent}>
+                    <Text style={styles.agentInfoTitle}>Tư vấn điều trị</Text>
+                    <Text style={styles.agentInfoDesc}>Đề xuất phương pháp điều trị phù hợp</Text>
+                  </View>
+                </View>
+              </View>
+              
+              <Text style={styles.welcomeText}>
+                Bạn có thể hỏi tôi về cách xử lý bệnh hoặc yêu cầu phân tích dữ liệu từ các lá cây bạn đã quét.
+              </Text>
+              
+              <View style={styles.suggestionsContainer}>
+                <TouchableOpacity 
+                  style={styles.suggestionButton}
+                  onPress={analyzeScanData}
+                >
+                  <Text style={styles.suggestionText}>Phân tích dữ liệu quét của tôi</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.suggestionButton}
+                  onPress={() => {
+                    setInput('Cách xử lý bệnh gỉ sắt');
+                    setTimeout(() => handleSend(), 100);
+                  }}
+                >
+                  <Text style={styles.suggestionText}>Cách xử lý bệnh gỉ sắt</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.suggestionButton}
+                  onPress={() => {
+                    setInput('Kỹ thuật cắt tỉa cây cà phê');
+                    setTimeout(() => handleSend(), 100);
+                  }}
+                >
+                  <Text style={styles.suggestionText}>Kỹ thuật cắt tỉa</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          
+          {/* Message bubbles */}
+          {renderMessages()}
+        </ScrollView>
+        <View style={styles.inputContainer}>
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            placeholder="Hỏi về chăm sóc cây cà phê..."
+            value={input}
+            onChangeText={setInput}
+            multiline
+            maxHeight={80}
+          />
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              !input.trim() && styles.disabledButton
+            ]}
+            onPress={handleSend}
+            disabled={!input.trim() || isLoading}
+          >
+            <FontAwesome5 
+              name="paper-plane" 
+              size={18} 
+              color={input.trim() ? COLORS.white : COLORS.grayMedium} 
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+    )}
+  </KeyboardAvoidingView>
+);
 };
 const styles = StyleSheet.create({
   container: {
@@ -1327,6 +1403,4 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.grayMedium,
   },
 });
-
-export default AdvisorTab;
-                  
+export default AdvisorTab;         
