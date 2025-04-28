@@ -1,6 +1,6 @@
 // components/tabs/AdvisorTab.js
-// components/tabs/AdvisorTab.js
 import React, { useState, useRef, useEffect } from 'react';
+import Markdown from 'react-native-markdown-display';
 import { 
   View, 
   Text, 
@@ -559,12 +559,32 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
               </View>
             )}
             
-            <Text style={[
-              styles.messageText,
-              message.isUser ? styles.userMessageText : styles.botMessageText
-            ]}>
-              {message.text}
-            </Text>
+            {/* Đây là phần đã được sửa */}
+            {message.isUser ? (
+              <Text style={[
+                styles.messageText,
+                styles.userMessageText
+              ]}>
+                {message.text}
+              </Text>
+            ) : (
+              <Markdown style={{
+                body: styles.messageText,
+                text: styles.botMessageText,
+                heading1: styles.botMessageText,
+                heading2: styles.botMessageText,
+                heading3: styles.botMessageText,
+                heading4: styles.botMessageText,
+                heading5: styles.botMessageText,
+                heading6: styles.botMessageText,
+                paragraph: styles.botMessageText,
+                list: styles.botMessageText,
+                listItem: styles.botMessageText,
+                bullet: styles.botMessageText,
+              }}>
+                {message.text}
+              </Markdown>
+            )}
             
             {/* Feedback buttons for recommendations */}
             {!message.isUser && message.recommendationId && !message.feedback && (
