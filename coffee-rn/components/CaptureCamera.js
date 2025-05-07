@@ -81,42 +81,45 @@ const CaptureCamera = ({ onLogout }) => {
     }
   };
 
-  // Hàm cập nhật thống kê
-  const updateHistoryStats = (history) => {
-    if (!history || history.length === 0) {
-      setHistoryStats({
-        totalScans: 0,
-        healthyTrees: 0,
-        diseasedTrees: 0,
-        diseases: {}
-      });
-      return;
-    }
-
-    const totalScans = history.length;
-    const healthyTrees = history.filter(scan => scan.result && scan.result.includes('khoẻ')).length;
-    const diseasedTrees = totalScans - healthyTrees;
-
-    // Thống kê các loại bệnh
-    const diseases = history.reduce((acc, scan) => {
-      if (scan.result && !scan.result.includes('khoẻ') && !scan.result.includes('Không phải lá')) {
-        // Lấy tên bệnh từ kết quả
-        const diseaseName = scan.result.includes('gỉ sắt') ? 'Gỉ sắt' :
-                         scan.result.includes('phoma') ? 'Phoma' :
-                         scan.result.includes('miner') ? 'Miner' :
-                         scan.result.includes('cercospora') ? 'Cerco' : 'Khác';
-        acc[diseaseName] = (acc[diseaseName] || 0) + 1;
-      }
-      return acc;
-    }, {});
-
+// Hàm cập nhật thống kê (khoảng dòng 140)
+const updateHistoryStats = (history) => {
+  if (!history || history.length === 0) {
     setHistoryStats({
-      totalScans,
-      healthyTrees,
-      diseasedTrees,
-      diseases
+      totalScans: 0,
+      healthyTrees: 0,
+      diseasedTrees: 0,
+      notCoffeeTrees: 0, // Thêm dòng này
+      diseases: {}
     });
-  };
+    return;
+  }
+
+  const totalScans = history.length;
+  const healthyTrees = history.filter(scan => scan.result && scan.result.includes('khoẻ')).length;
+  const notCoffeeTrees = history.filter(scan => scan.result && scan.result.includes('Không phải lá')).length; // Thêm dòng này
+  const diseasedTrees = totalScans - healthyTrees - notCoffeeTrees; // Sửa dòng này
+
+  // Thống kê các loại bệnh
+  const diseases = history.reduce((acc, scan) => {
+    if (scan.result && !scan.result.includes('khoẻ') && !scan.result.includes('Không phải lá')) { // Sửa điều kiện này
+      // Lấy tên bệnh từ kết quả
+      const diseaseName = scan.result.includes('gỉ sắt') ? 'Gỉ sắt' :
+                        scan.result.includes('phoma') ? 'Phoma' :
+                        scan.result.includes('miner') ? 'Miner' :
+                        scan.result.includes('cercospora') ? 'Cerco' : 'Khác';
+      acc[diseaseName] = (acc[diseaseName] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  setHistoryStats({
+    totalScans,
+    healthyTrees,
+    diseasedTrees,
+    notCoffeeTrees, // Thêm dòng này
+    diseases
+  });
+};
 
   // Hàm thêm kết quả quét mới vào lịch sử
   const addScanToHistory = async (scanResult, imageUri) => {

@@ -89,8 +89,10 @@ const HistoryTab = ({
       style={[
         styles.historyItem, 
         { 
-          borderLeftColor: item.result.includes('khoẻ') ? COLORS.success : COLORS.danger,
-          backgroundColor: item.result.includes('khoẻ') ? COLORS.successLight : COLORS.dangerLight
+          borderLeftColor: item.result.includes('khoẻ') ? COLORS.success : 
+                           item.result.includes('Không phải lá') ? COLORS.warning : COLORS.danger,
+          backgroundColor: item.result.includes('khoẻ') ? COLORS.successLight : 
+                           item.result.includes('Không phải lá') ? COLORS.warningLight : COLORS.dangerLight
         }
       ]}
       onPress={() => onViewScan(item)}
@@ -162,6 +164,13 @@ const HistoryTab = ({
             {historyStats.healthyTrees || 0}
           </Text>
           <Text style={styles.statsLabel}>Cây khỏe</Text>
+        </View>
+        
+        <View style={styles.statsCard}>
+          <Text style={[styles.statsNumber, {color: COLORS.warning}]}>
+            {historyStats.notCoffeeTrees || 0}
+          </Text>
+          <Text style={styles.statsLabel}>Không phải</Text>
         </View>
         
         <View style={styles.statsCard}>

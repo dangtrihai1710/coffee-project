@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
-  Text, // Thêm Text vào đây
+  Text, 
   ScrollView, 
   KeyboardAvoidingView,
   Platform,
@@ -44,12 +44,31 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   const scrollViewRef = useRef();
   const inputRef = useRef();
   
+  // Focus vào input khi cần
+  const focusInput = () => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+  
   // Load hội thoại hiện tại khi ID thay đổi
   useEffect(() => {
     if (currentConversationId) {
       loadConversation(currentConversationId);
     }
   }, [currentConversationId]);
+  
+  // Khi mở chat (không phải màn hình lịch sử)
+  useEffect(() => {
+    if (!showHistory && currentConversationId) {
+      // Đợi một chút cho UI render xong
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: false });
+        }
+      }, 500);
+    }
+  }, [showHistory, currentConversationId]);
   
   // Load danh sách hội thoại khi mở tab
   useEffect(() => {
@@ -59,18 +78,24 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       (event) => {
+        console.log('Bàn phím hiện - chiều cao:', event.endCoordinates.height);
         setKeyboardHeight(event.endCoordinates.height);
-        // Cuộn đến cuối khi bàn phím hiển thị
+        // Cuộn đến cuối khi bàn phím hiển thị với độ trễ lớn hơn
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        }, 300);
       }
     );
     
     const keyboardDidHideListener = Keyboard.addListener(
       'keyboardDidHide',
       () => {
+        console.log('Bàn phím ẩn');
         setKeyboardHeight(0);
+        // Khi bàn phím ẩn cũng cuộn xuống để đảm bảo vùng nhìn đúng
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
       }
     );
     
@@ -283,7 +308,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     // Cuộn xuống tin nhắn mới
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    }, 300);
     
     try {
       // Chuẩn bị ngữ cảnh cho agent
@@ -333,7 +358,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       // Cuộn xuống tin nhắn mới
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      }, 300);
     }
   };
   
@@ -414,7 +439,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     // Cuộn xuống tin nhắn mới
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    }, 300);
     
     try {
       // Sử dụng utils để tạo phân tích
@@ -456,7 +481,7 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       // Cuộn xuống tin nhắn mới
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      }, 300);
     }
   };
 
@@ -494,9 +519,9 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   // Render component chính
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined} // Chỉ sử dụng padding cho iOS
       style={styles.container}
-      keyboardVerticalOffset={90}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {showHistory ? (
         // Danh sách hội thoại
@@ -531,49 +556,55 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
           </View>
         </View>
       ) : (
-        // Giao diện chat
+        // Giao diện chat - Sử dụng cấu trúc mới
         <View style={styles.chatContainer}>
           <ChatHeader
             title={conversations.find(c => c.id === currentConversationId)?.title || 'Tư vấn'}
             onBack={backToHistory}
           />
           
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.messagesContainer}
-            contentContainerStyle={[
-              styles.messagesContent,
-              { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 90 }
-            ]}
-          >
-            {/* Welcome message if no messages */}
-            {messages.length === 0 && (
-              <WelcomeMessage
-                onAnalyzeScan={analyzeScanData}
-                onQuickQuestion={handleQuickQuestion}
-              />
-            )}
+          <View style={styles.chatContentContainer}>
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.messagesContainer}
+              contentContainerStyle={[
+                styles.messagesContent,
+                { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 60 : 90 } 
+              ]}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Welcome message if no messages */}
+              {messages.length === 0 && (
+                <WelcomeMessage
+                  onAnalyzeScan={analyzeScanData}
+                  onQuickQuestion={handleQuickQuestion}
+                />
+              )}
+              
+              {/* Messages */}
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onGiveFeedback={handleFeedback}
+                />
+              ))}
+              
+              {/* Loading indicator */}
+              {isLoading && <LoadingBubble />}
+            </ScrollView>
             
-            {/* Messages */}
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                onGiveFeedback={handleFeedback}
+            {/* Đảm bảo input luôn ở dưới cùng */}
+            <View style={styles.inputContainer}>
+              <ChatInput
+                ref={inputRef}
+                value={input}
+                onChangeText={setInput}
+                onSend={handleSend}
+                isLoading={isLoading}
               />
-            ))}
-            
-            {/* Loading indicator */}
-            {isLoading && <LoadingBubble />}
-          </ScrollView>
-          
-          <ChatInput
-            ref={inputRef}
-            value={input}
-            onChangeText={setInput}
-            onSend={handleSend}
-            isLoading={isLoading}
-          />
+            </View>
+          </View>
         </View>
       )}
     </KeyboardAvoidingView>
@@ -593,13 +624,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.white,
   },
+  chatContentContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   messagesContainer: {
     flex: 1,
     backgroundColor: COLORS.grayLight,
   },
   messagesContent: {
     padding: 15,
-    paddingBottom: 90,
+    paddingBottom: 90, // Đảm bảo khoảng cách đủ để hiển thị ô input
+  },
+  inputContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    zIndex: 999, // Đảm bảo hiển thị trên cùng
+    elevation: 5, // Thêm shadow cho Android
+    shadowColor: COLORS.black, // Shadow cho iOS
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   bottomInfo: {
     padding: 15,

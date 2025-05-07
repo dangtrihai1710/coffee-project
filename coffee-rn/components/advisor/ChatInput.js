@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.grayMedium,
     alignItems: 'flex-end',
-    position: 'absolute',
+    // Bỏ position: 'absolute' vì nó sẽ được đặt bên trong một View cố định
     bottom: 0,
     left: 0,
     right: 0,

@@ -438,7 +438,6 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
         </View>
       )}
 
-      {/* Recent Scans Section - Hiển thị một số mục từ scanHistory thực tế */}
       {scanHistory && scanHistory.length > 0 && (
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Lần quét gần đây</Text>
@@ -479,48 +478,69 @@ const ScanTab = ({ scanHistory = [], historyStats = {}, onScanComplete, onViewAl
         <Text style={styles.sectionTitle}>Thống kê trang trại</Text>
         
         {scanHistory && scanHistory.length > 0 ? (
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <View style={styles.statBarContainer}>
-                <View 
-                  style={[
-                    styles.statBarFill,
-                    {
-                      height: `${historyStats.healthyTrees / historyStats.totalScans * 100}%`,
-                      backgroundColor: COLORS.success
-                    }
-                  ]}
-                />
-              </View>
-              <Text style={styles.statName}>Khoẻ</Text>
-              <Text style={styles.statValue}>{Math.round(historyStats.healthyTrees / historyStats.totalScans * 100)}%</Text>
-            </View>
-            
-            {/* Phần cho các loại bệnh - Tính toán từ dữ liệu thực */}
-            {Object.entries(historyStats.diseases || {}).map(([name, count], index) => (
-              <View key={index} style={styles.statItem}>
-                <View style={styles.statBarContainer}>
-                  <View 
-                    style={[
-                      styles.statBarFill,
-                      {
-                        height: `${count / historyStats.totalScans * 100}%`,
-                        backgroundColor: COLORS.danger
-                      }
-                    ]}
-                  />
-                </View>
-                <Text style={styles.statName}>{name}</Text>
-                <Text style={styles.statValue}>{Math.round(count / historyStats.totalScans * 100)}%</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.noStatsContainer}>
-            <Text style={styles.noStatsText}>Chưa có đủ dữ liệu để hiển thị thống kê</Text>
-            <Text style={styles.noStatsSubtext}>Quét thêm lá cây để xem thống kê chi tiết</Text>
-          </View>
-        )}
+  <View style={styles.statsContainer}>
+    <View style={styles.statItem}>
+      <View style={styles.statBarContainer}>
+        <View 
+          style={[
+            styles.statBarFill,
+            {
+              height: `${historyStats.healthyTrees / historyStats.totalScans * 100}%`,
+              backgroundColor: COLORS.success
+            }
+          ]}
+        />
+      </View>
+      <Text style={styles.statName}>Khoẻ</Text>
+      <Text style={styles.statValue}>{Math.round(historyStats.healthyTrees / historyStats.totalScans * 100)}%</Text>
+    </View>
+    
+    {/* Thêm phần hiển thị cho Không phải lá cà phê */}
+    {historyStats.notCoffeeTrees > 0 && (
+      <View style={styles.statItem}>
+        <View style={styles.statBarContainer}>
+          <View 
+            style={[
+              styles.statBarFill,
+              {
+                height: `${historyStats.notCoffeeTrees / historyStats.totalScans * 100}%`,
+                backgroundColor: COLORS.warning
+              }
+            ]}
+          />
+        </View>
+        <Text style={styles.statName}>Không phải</Text>
+        <Text style={styles.statValue}>
+          {Math.round(historyStats.notCoffeeTrees / historyStats.totalScans * 100)}%
+        </Text>
+      </View>
+    )}
+    
+    {/* Phần cho các loại bệnh - Tính toán từ dữ liệu thực */}
+    {Object.entries(historyStats.diseases || {}).map(([name, count], index) => (
+      <View key={index} style={styles.statItem}>
+        <View style={styles.statBarContainer}>
+          <View 
+            style={[
+              styles.statBarFill,
+              {
+                height: `${count / historyStats.totalScans * 100}%`,
+                backgroundColor: COLORS.danger
+              }
+            ]}
+          />
+        </View>
+        <Text style={styles.statName}>{name}</Text>
+        <Text style={styles.statValue}>{Math.round(count / historyStats.totalScans * 100)}%</Text>
+      </View>
+    ))}
+  </View>
+) : (
+  <View style={styles.noStatsContainer}>
+    <Text style={styles.noStatsText}>Chưa có đủ dữ liệu để hiển thị thống kê</Text>
+    <Text style={styles.noStatsSubtext}>Quét thêm lá cây để xem thống kê chi tiết</Text>
+  </View>
+)}
         
         <TouchableOpacity 
           style={styles.viewMoreButton}
