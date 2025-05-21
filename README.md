@@ -112,16 +112,6 @@ python app.py
 ## 🧠 Mô hình AI sử dụng
 Ứng dụng sử dụng mô hình ResNet50 được tùy chỉnh, huấn luyện trên tập dữ liệu hơn 5000 hình ảnh lá cà phê với độ chính xác 97.09% cho 5 loại bệnh phổ biến. Mô hình được tối ưu hóa để chạy trên thiết bị di động với thời gian xử lý dưới 3 giây.
 
-## 🤝 Đóng góp
-Chúng tôi rất hoan nghênh các đóng góp! Nếu bạn muốn đóng góp, vui lòng:
-1. Fork repository
-2. Tạo branch mới (`git checkout -b feature/amazing-feature`)
-3. Commit thay đổi của bạn (`git commit -m 'Add amazing feature'`)
-4. Push đến branch (`git push origin feature/amazing-feature`)
-5. Mở Pull Request
-
-## 📄 Giấy phép
-Dự án được phân phối dưới giấy phép MIT. Xem `LICENSE` để biết thêm thông tin.
 
 ## 📞 Liên hệ
 - Email: haic1947@gmail.com
