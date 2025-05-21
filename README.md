@@ -1,7 +1,7 @@
 # Coffee Care - Ứng dụng Chẩn đoán Bệnh Cây Cà Phê
 
 <div align="center">
-  <img src="assets/icon.png" alt="Coffee Care Logo" width="150" height="150"/>
+  <img src="https://i.imgur.com/JyULzKF.png" alt="Coffee Care Logo" width="150" height="150"/>
   <h3>Phát hiện và chẩn đoán bệnh cây cà phê sử dụng AI</h3>
 </div>
 
