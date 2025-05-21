@@ -124,12 +124,10 @@ Chúng tôi rất hoan nghênh các đóng góp! Nếu bạn muốn đóng góp,
 Dự án được phân phối dưới giấy phép MIT. Xem `LICENSE` để biết thêm thông tin.
 
 ## 📞 Liên hệ
-- Email: contact@coffeecare.app
-- Website: https://coffeecare.app
-
+- Email: haic1947@gmail.com
 ---
 
 <div align="center">
-  <p>Phát triển bởi Đặng Trí Hải và Hoàng Đức Hạnh</p>
+  <p>Phát triển bởi Đặng Trí Hải</p>
   <p>Đại học Công nghệ TP.HCM (HUTECH)</p>
 </div>
