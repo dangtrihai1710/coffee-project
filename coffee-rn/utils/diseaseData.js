@@ -24,7 +24,7 @@ const diseaseData = [
         'Loại bỏ và tiêu hủy lá bị nhiễm bệnh',
         'Phun thuốc phòng ngừa định kỳ trong mùa mưa'
       ],
-      image: 'https://via.placeholder.com/300x200'
+      image: require('../assets/images/coffee-rust.jpg')
     },
     {
       id: 2,
@@ -47,7 +47,7 @@ const diseaseData = [
         'Bón phân đầy đủ để cây khỏe mạnh',
         'Loại bỏ lá bị nhiễm bệnh'
       ],
-      image: 'https://via.placeholder.com/300x200'
+      image: require('../assets/images/brown-eye-spot.jpg')
     },
     {
       id: 3,
@@ -71,7 +71,7 @@ const diseaseData = [
         'Khuyến khích sự hiện diện của thiên địch',
         'Trồng cây bóng mát hợp lý'
       ],
-      image: 'https://via.placeholder.com/300x200'
+      image: require('../assets/images/leaf-miner.jpg')
     },
     {
       id: 4,
@@ -95,7 +95,7 @@ const diseaseData = [
         'Loại bỏ lá và cành bị nhiễm bệnh',
         'Tránh để lá ướt quá lâu'
       ],
-      image: 'https://via.placeholder.com/300x200'
+      image: require('../assets/images/phoma-leaf-spot.jpg')
     }
   ];
   

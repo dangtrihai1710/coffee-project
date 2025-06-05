@@ -64,9 +64,11 @@ const TreatmentTab = () => {
       {selectedDisease && (
         <ScrollView style={styles.diseaseDetailContainer}>
           <View style={styles.diseaseHeaderCard}>
+            {/* Sử dụng source trực tiếp cho ảnh local */}
             <Image 
-              source={{ uri: selectedDisease.image }} 
+              source={selectedDisease.image} 
               style={styles.diseaseImage} 
+              resizeMode="cover"
             />
             
             <View style={styles.diseaseHeaderContent}>
