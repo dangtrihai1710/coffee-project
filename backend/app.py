@@ -14,28 +14,35 @@ CORS(app)
 
 # ============ Định nghĩa các model ============
 
-# 1) Model 1: Phân biệt coffee vs not_coffee
+# 1) Model 1: Phân biệt coffee vs not_coffee (giữ nguyên như cũ)
 MODEL_COFFEE_PATH = "coffee_vs_notcoffee.keras"
 try:
     model_coffee = tf.keras.models.load_model(MODEL_COFFEE_PATH)
     print("Model 1 (coffee vs not_coffee) đã được tải thành công.")
 except Exception as e:
     print(f"Lỗi khi tải model_coffee: {e}")
+    model_coffee = None
 
-# 2) Model 2: Phân loại bệnh lá cà phê
+# 2) Model 2: Phân loại bệnh lá cà phê (CẬP NHẬT)
 MODEL_DISEASE_PATH = "coffee_resnet50_model_final.h5"
+# Cập nhật lại labels theo thứ tự mới từ training code
 LABELS_DISEASE = [
-    "Cây khoẻ (không bệnh)",
-    "Bệnh miner",
-    "Bệnh gỉ sắt",
-    "Bệnh phoma",
-    "Bệnh cercospora"
+    "Bệnh cercospora",      # Cercospora
+    "Cây khoẻ (không bệnh)", # Healthy
+    "Bệnh miner",           # Miner
+    "Bệnh phoma",           # Phoma
+    "Bệnh gỉ sắt"           # Rust
 ]
+
 try:
     model_disease = tf.keras.models.load_model(MODEL_DISEASE_PATH)
     print("Model 2 (bệnh lá cà phê) đã được tải thành công.")
+    print(f"Input shape của model: {model_disease.input_shape}")
+    print(f"Output shape của model: {model_disease.output_shape}")
+    print(f"Số lớp dự đoán: {len(LABELS_DISEASE)}")
 except Exception as e:
     print(f"Lỗi khi tải model_disease: {e}")
+    model_disease = None
 
 # ============ Hàm tiền xử lý ảnh ============
 
@@ -60,7 +67,9 @@ def preprocess_image(image, target_size=IMG_SIZE, is_coffee_model=True):
     image_array = np.array(image)
     
     # Đảm bảo 3 kênh màu
-    if image_array.shape[-1] == 4:
+    if len(image_array.shape) == 2:  # Grayscale
+        image_array = np.stack([image_array] * 3, axis=-1)
+    elif image_array.shape[-1] == 4:  # RGBA
         image_array = image_array[..., :3]
     
     # Chuyển đổi kiểu dữ liệu
@@ -70,95 +79,19 @@ def preprocess_image(image, target_size=IMG_SIZE, is_coffee_model=True):
     if is_coffee_model:
         # Model coffee vs not_coffee: normalize về [0, 1]
         image_array = image_array / 255.0
+        # Thêm batch dimension
+        image_array = np.expand_dims(image_array, axis=0)
     else:
         # Model bệnh lá: sử dụng preprocess_input của ResNet50
         # Thêm batch dimension trước khi preprocess
         image_array = np.expand_dims(image_array, axis=0)
+        # Sử dụng preprocess_input của ResNet50 (chuẩn hóa theo ImageNet)
         image_array = tf.keras.applications.resnet50.preprocess_input(image_array)
-        # Trả về batch dimension đã được thêm
         return image_array
     
-    # Thêm batch dimension
-    image_array = np.expand_dims(image_array, axis=0)
-    
     return image_array
 
-def preprocess_for_natural_environment(image, target_size=IMG_SIZE):
-    """
-    Tiền xử lý đặc biệt cho ảnh trong môi trường tự nhiên
-    """
-    # Cải thiện độ tương phản
-    image_array = np.array(image)
-    
-    # Áp dụng CLAHE (Contrast Limited Adaptive Histogram Equalization)
-    lab = cv2.cvtColor(image_array, cv2.COLOR_RGB2LAB)
-    l, a, b = cv2.split(lab)
-    
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    l = clahe.apply(l)
-    
-    enhanced = cv2.merge([l, a, b])
-    enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2RGB)
-    
-    # Resize và normalize
-    enhanced_pil = Image.fromarray(enhanced)
-    enhanced_pil = enhanced_pil.resize(target_size)
-    
-    image_array = np.array(enhanced_pil).astype("float32")
-    
-    # Normalize
-    image_array = image_array / 255.0
-    image_array = np.expand_dims(image_array, axis=0)
-    
-    return image_array
-
-# ============ Bộ lọc đầu vào cải thiện ============
-
-def detect_coffee_leaves_in_natural_environment(image):
-    """
-    Cải thiện nhận diện lá cà phê trong môi trường tự nhiên
-    """
-    image_np = np.array(image)
-    
-    # Chuyển sang HSV để phân tích màu sắc tốt hơn
-    hsv = cv2.cvtColor(image_np, cv2.COLOR_RGB2HSV)
-    
-    # Định nghĩa phạm vi màu xanh lá cây (HSV)
-    lower_green = np.array([35, 40, 40])
-    upper_green = np.array([85, 255, 255])
-    
-    # Tạo mask cho màu xanh lá
-    green_mask = cv2.inRange(hsv, lower_green, upper_green)
-    
-    # Tính tỷ lệ màu xanh lá
-    green_ratio = np.sum(green_mask > 0) / (image_np.shape[0] * image_np.shape[1])
-    
-    # Nếu có đủ màu xanh lá (>25%), có thể là lá cà phê
-    if green_ratio < 0.25:
-        return False
-    
-    # Phát hiện cạnh để tìm hình dạng lá
-    gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-    edges = cv2.Canny(gray, 50, 150)
-    
-    # Tìm contours
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Kiểm tra có ít nhất một contour có kích thước hợp lý
-    valid_leaf_found = False
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area > 800:  # Diện tích tối thiểu cho một lá
-            # Tính tỷ lệ khung hình
-            x, y, w, h = cv2.boundingRect(contour)
-            aspect_ratio = float(w) / h
-            
-            # Lá cà phê thường có tỷ lệ 1.2 - 3.5
-            if 1.2 <= aspect_ratio <= 3.5:
-                valid_leaf_found = True
-                break
-    
-    return valid_leaf_found
+# ============ Bộ lọc đầu vào xét cả màu sắc và hình dạng ============
 
 def has_extreme_non_leaf_features(image):
     """
@@ -167,6 +100,12 @@ def has_extreme_non_leaf_features(image):
     """
     # Chuyển đổi ảnh sang array
     image_np = np.array(image)
+    
+    # Đảm bảo ảnh có 3 kênh
+    if len(image_np.shape) == 2:
+        image_np = np.stack([image_np] * 3, axis=-1)
+    elif len(image_np.shape) == 3 and image_np.shape[-1] == 4:
+        image_np = image_np[..., :3]
     
     # --- Kiểm tra màu sắc ---
     # Kiểm tra tỷ lệ màu xanh lá cây
@@ -191,7 +130,7 @@ def has_extreme_non_leaf_features(image):
     
     # --- Kiểm tra hình dạng ---
     # Chuyển ảnh sang grayscale để phát hiện cạnh
-    gray_image = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+    gray_image = cv2.cvtColor(image_np.astype(np.uint8), cv2.COLOR_RGB2GRAY)
     
     # Phát hiện cạnh bằng Canny Edge Detection
     edges = cv2.Canny(gray_image, 100, 200)
@@ -211,7 +150,6 @@ def has_extreme_non_leaf_features(image):
     perimeter = cv2.arcLength(largest_contour, True)
     
     # Kiểm tra độ phức tạp của đường viền (compactness)
-    # compactness = perimeter^2 / area (giá trị thấp hơn nghĩa là hình dạng đơn giản hơn)
     if area > 0:  # Tránh chia cho 0
         compactness = (perimeter ** 2) / area
     else:
@@ -223,18 +161,18 @@ def has_extreme_non_leaf_features(image):
     
     # --- Kết hợp các tiêu chí ---
     # 1. Kiểm tra màu sắc: Nếu không có màu xanh và không có màu nâu
-    color_condition = green_ratio < 0.15 and brown_ratio < 0.08
+    color_condition = green_ratio < 0.2 and brown_ratio < 0.1
     
     # 2. Kiểm tra độ sáng: Nếu ảnh quá tối hoặc quá sáng
-    brightness_condition = brightness < 0.05 or brightness > 0.95
+    brightness_condition = brightness < 0.03 or brightness > 0.97
     
     # 3. Kiểm tra độ lệch chuẩn màu: Nếu ảnh gần như trắng đen
-    color_std_condition = np.all(color_std < 20)
+    color_std_condition = np.all(color_std < 15)
     
     # 4. Kiểm tra hình dạng:
-    # - Lá cà phê thường có tỷ lệ chiều dài/chiều rộng từ 1.2 đến 3.5
-    # - Lá có hình dạng tương đối đơn giản (compactness thấp, thường < 25)
-    shape_condition = not (1.2 <= aspect_ratio <= 3.5 and compactness < 25)
+    # - Lá cà phê thường có tỷ lệ chiều dài/chiều rộng từ 1.5 đến 3
+    # - Lá có hình dạng tương đối đơn giản (compactness thấp, thường < 20)
+    shape_condition = not (1.5 <= aspect_ratio <= 3.0 and compactness < 20)
     
     # Nếu ảnh không có màu sắc đặc trưng của lá (xanh hoặc nâu)
     # và không có hình dạng giống lá, thì coi là không phải lá
@@ -245,22 +183,11 @@ def has_extreme_non_leaf_features(image):
     
     return False
 
-def enhanced_leaf_detection(image):
-    """
-    Cải thiện phát hiện lá cà phê với nhiều kỹ thuật
-    """
-    # Kiểm tra các đặc điểm cực đoan không phải lá
-    if has_extreme_non_leaf_features(image):
-        return False
-    
-    # Kiểm tra môi trường tự nhiên
-    return detect_coffee_leaves_in_natural_environment(image)
-
 # ============ Route mặc định ============
 
 @app.route("/")
 def home():
-    return "API Cascade: model1 (coffee vs not_coffee) => model2 (disease)! - Phiên bản cải thiện cho môi trường tự nhiên"
+    return "API Cascade: model1 (coffee vs not_coffee) => model2 (disease classification)!"
 
 # ============ Routes xác thực ============
 
@@ -335,7 +262,7 @@ def update_profile():
         "user": updated_user
     })
 
-# ============ Route predict đã cải thiện ============
+# ============ Route predict ============
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -347,36 +274,28 @@ def predict():
         # Đọc ảnh từ file gửi lên
         image = Image.open(io.BytesIO(file.read()))
         
-        # BƯỚC 0: Kiểm tra cải thiện cho môi trường tự nhiên
-        if not enhanced_leaf_detection(image):
+        # Chuyển sang RGB nếu cần
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # BƯỚC 0: Tiền lọc - Kiểm tra các trường hợp cực đoan rõ ràng
+        if has_extreme_non_leaf_features(image):
             return jsonify({
-                "predicted_label": "Không phải lá cây hoặc ảnh không rõ",
-                "confidence": "95.00%", 
-                "is_leaf": False,
-                "suggestion": "Thử chụp gần hơn vào lá cà phê hoặc cải thiện ánh sáng. Đảm bảo có ít nhất 25% diện tích ảnh là lá xanh."
+                "predicted_label": "Không phải lá cây",
+                "confidence": "99.00%", 
+                "is_leaf": False
             })
         
-        # Tiền xử lý ảnh cho model coffee vs not_coffee
-        # Sử dụng preprocessing cải thiện cho môi trường tự nhiên
-        processed_coffee = preprocess_for_natural_environment(image)
-
-        # ====== Bước 1: Model coffee vs not_coffee ======
-        preds_coffee = model_coffee.predict(processed_coffee)
-        
-        # Xác định xác suất not_coffee
-        prob_not_coffee = float(preds_coffee[0][0])
-        
-        # Điều chỉnh ngưỡng cho môi trường tự nhiên (giảm từ 0.85 xuống 0.75)
-        if prob_not_coffee > 0.75:
-            return jsonify({
-                "predicted_label": "Có thể không phải lá cà phê",
-                "confidence": f"{prob_not_coffee * 100:.2f}%",
-                "is_leaf": True,
-                "suggestion": "Để có kết quả chính xác hơn, hãy chụp lá riêng lẻ với nền đơn giản và ánh sáng tốt."
-            })
-        else:
-            # ====== Bước 2: Model phân loại bệnh lá cà phê ======
-            # Tiền xử lý ảnh cho model bệnh lá (chú ý khác với model coffee)
+        # Kiểm tra model coffee có tồn tại không
+        if model_coffee is None:
+            # Nếu không có model coffee, bỏ qua bước 1 và đi thẳng đến bước 2
+            print("[SKIP] Model coffee không khả dụng, bỏ qua kiểm tra coffee vs not_coffee")
+            
+            # Kiểm tra model disease
+            if model_disease is None:
+                return jsonify({"error": "Không có model nào khả dụng"}), 500
+            
+            # Tiền xử lý ảnh cho model bệnh lá
             processed_disease = preprocess_image(image, is_coffee_model=False)
             
             # Dự đoán bệnh với model categorical
@@ -387,99 +306,99 @@ def predict():
             predicted_label = LABELS_DISEASE[class_id]
             confidence = float(np.max(preds_disease) * 100.0)
             
-            # Thêm lời khuyên dựa trên độ tin cậy và môi trường
-            suggestion = ""
-            if confidence < 80:
-                suggestion = "Độ tin cậy thấp. Để có kết quả chính xác hơn, hãy chụp lá riêng lẻ với nền đơn giản và ánh sáng tự nhiên."
-            elif 0.65 < prob_not_coffee <= 0.75:
-                coffee_confidence = (1 - prob_not_coffee) * 100
-                suggestion = "Lá có vẻ như cà phê nhưng chất lượng ảnh có thể chưa tối ưu. Thử chụp rõ nét hơn."
+            return jsonify({
+                "predicted_label": predicted_label,
+                "confidence": f"{confidence:.2f}%",
+                "is_leaf": True,
+                "note": "Bỏ qua kiểm tra coffee vs not_coffee do model không khả dụng"
+            })
+        
+        # Tiền xử lý ảnh cho model coffee vs not_coffee
+        processed_coffee = preprocess_image(image, is_coffee_model=True)
+
+        # ====== Bước 1: Model coffee vs not_coffee ======
+        preds_coffee = model_coffee.predict(processed_coffee)
+        
+        # Xác định xác suất not_coffee
+        prob_not_coffee = float(preds_coffee[0][0])
+        
+        # Ngưỡng để phân loại not_coffee
+        if prob_not_coffee > 0.85:
+            return jsonify({
+                "predicted_label": "Không phải lá cà phê",
+                "confidence": f"{prob_not_coffee * 100:.2f}%",
+                "is_leaf": True
+            })
+        else:
+            # ====== Bước 2: Model phân loại bệnh lá cà phê ======
+            # Kiểm tra model disease có tồn tại không
+            if model_disease is None:
+                return jsonify({"error": "Model phân loại bệnh không khả dụng"}), 500
             
-            # Nếu nằm ở vùng không chắc chắn (0.65-0.75), đưa ra cảnh báo
-            if 0.65 < prob_not_coffee <= 0.75:
+            # Tiền xử lý ảnh cho model bệnh lá (khác với model coffee)
+            processed_disease = preprocess_image(image, is_coffee_model=False)
+            
+            # Dự đoán bệnh với model categorical
+            preds_disease = model_disease.predict(processed_disease)
+            
+            # Chuyển về index của lớp có xác suất cao nhất
+            class_id = int(np.argmax(preds_disease, axis=1)[0])
+            predicted_label = LABELS_DISEASE[class_id]
+            confidence = float(np.max(preds_disease) * 100.0)
+            
+            # Debug: In ra các xác suất dự đoán
+            print(f"[DEBUG] Prediction probabilities: {preds_disease[0]}")
+            print(f"[DEBUG] Predicted class: {class_id} - {predicted_label}")
+            print(f"[DEBUG] Confidence: {confidence:.2f}%")
+            
+            # Nếu nằm ở vùng không chắc chắn (0.75-0.85), đưa ra cảnh báo
+            if prob_not_coffee > 0.75 and prob_not_coffee <= 0.85:
                 coffee_confidence = (1 - prob_not_coffee) * 100
                 return jsonify({
                     "predicted_label": predicted_label,
                     "confidence": f"{coffee_confidence:.2f}%",
                     "warning": "Cây có thể không phải cà phê, hãy kiểm tra lại",
-                    "is_leaf": True,
-                    "suggestion": suggestion or "Thử chụp lá riêng lẻ với nền đối lập và ánh sáng tốt hơn."
+                    "is_leaf": True
                 })
             
             return jsonify({
                 "predicted_label": predicted_label,
                 "confidence": f"{confidence:.2f}%",
-                "is_leaf": True,
-                "suggestion": suggestion,
-                "natural_environment": True  # Đánh dấu đây là kết quả từ môi trường tự nhiên
+                "is_leaf": True
             })
 
     except Exception as e:
+        print(f"[ERROR] Prediction error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-# ============ Route debug mới ============
+# ============ Route kiểm tra trạng thái ============
 
-@app.route("/debug/image-analysis", methods=["POST"])
-def debug_image_analysis():
-    """
-    Route debug để phân tích chi tiết ảnh
-    """
-    if "file" not in request.files:
-        return jsonify({"error": "Không có file được gửi lên"}), 400
-    
-    file = request.files["file"]
-    try:
-        image = Image.open(io.BytesIO(file.read()))
-        image_np = np.array(image)
-        
-        # Phân tích màu sắc
-        hsv = cv2.cvtColor(image_np, cv2.COLOR_RGB2HSV)
-        lower_green = np.array([35, 40, 40])
-        upper_green = np.array([85, 255, 255])
-        green_mask = cv2.inRange(hsv, lower_green, upper_green)
-        green_ratio = np.sum(green_mask > 0) / (image_np.shape[0] * image_np.shape[1])
-        
-        # Phân tích hình dạng
-        gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-        edges = cv2.Canny(gray, 50, 150)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Thông tin contour lớn nhất
-        largest_contour_info = {}
-        if contours:
-            largest_contour = max(contours, key=cv2.contourArea)
-            area = cv2.contourArea(largest_contour)
-            x, y, w, h = cv2.boundingRect(largest_contour)
-            aspect_ratio = float(w) / h if h > 0 else 0
-            
-            largest_contour_info = {
-                "area": float(area),
-                "aspect_ratio": float(aspect_ratio),
-                "width": int(w),
-                "height": int(h)
-            }
-        
-        # Độ sáng trung bình
-        brightness = float(np.mean(image_np) / 255.0)
-        
-        return jsonify({
-            "image_size": image_np.shape,
-            "green_ratio": float(green_ratio),
-            "brightness": brightness,
-            "contours_found": len(contours),
-            "largest_contour": largest_contour_info,
-            "passes_basic_filter": not has_extreme_non_leaf_features(image),
-            "passes_natural_env_filter": detect_coffee_leaves_in_natural_environment(image),
-            "overall_assessment": enhanced_leaf_detection(image)
-        })
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route("/status", methods=["GET"])
+def status():
+    """Endpoint để kiểm tra trạng thái các model"""
+    return jsonify({
+        "status": "running",
+        "models": {
+            "coffee_vs_not_coffee": model_coffee is not None,
+            "disease_classification": model_disease is not None
+        },
+        "disease_classes": LABELS_DISEASE,
+        "total_classes": len(LABELS_DISEASE)
+    })
 
 # ============ Chạy app ============
 
 if __name__ == "__main__":
-    print("🌿 Coffee Care API - Phiên bản cải thiện cho môi trường tự nhiên")
-    print("📸 Hỗ trợ nhận diện lá cà phê trong ảnh có nhiều lá và nền phức tạp")
-    print("🔧 Debug endpoint: POST /debug/image-analysis")
+    print("\n" + "="*50)
+    print("COFFEE CARE API SERVER")
+    print("="*50)
+    print(f"Model coffee vs not_coffee: {'✓ Loaded' if model_coffee else '✗ Not loaded'}")
+    print(f"Model disease classification: {'✓ Loaded' if model_disease else '✗ Not loaded'}")
+    if model_disease:
+        print(f"Disease classes: {len(LABELS_DISEASE)}")
+        for i, label in enumerate(LABELS_DISEASE):
+            print(f"  {i}: {label}")
+    print("="*50)
     app.run(host="0.0.0.0", port=5000, debug=True)
