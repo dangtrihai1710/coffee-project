@@ -12,6 +12,8 @@ class ApiService {
   static COMMON_IPS = [
     '192.168.100.142',
     '192.168.161.50',
+    '192.168.141.24',
+    '10.14.79.164'
   ];
   
   // Kiểm tra một endpoint cụ thể trên server
