@@ -5,12 +5,12 @@ import AuthWrapper from './components/AuthWrapper';
 import ApiService from './services/ApiService';
 import { LogBox } from 'react-native';
 
-// Tắt cảnh báo về Text strings
+
 LogBox.ignoreLogs([
   'Text strings must be rendered within a <Text> component'
 ]);
 
-// Khởi tạo InteractionMemoryService
+
 import { InteractionMemoryService } from './services/InteractionMemoryService';
 
 export default function App() {

@@ -11,23 +11,23 @@ const STORAGE_KEYS = {
 
 // Định nghĩa mức độ phản hồi
 const FEEDBACK_LEVELS = {
-  VERY_POSITIVE: 'very_positive',  // Người dùng rất hài lòng
-  POSITIVE: 'positive',            // Người dùng hài lòng
-  NEUTRAL: 'neutral',              // Người dùng trung lập
-  NEGATIVE: 'negative',            // Người dùng không hài lòng
-  VERY_NEGATIVE: 'very_negative',  // Người dùng rất không hài lòng
+  VERY_POSITIVE: 'very_positive',  
+  POSITIVE: 'positive',          
+  NEUTRAL: 'neutral',             
+  NEGATIVE: 'negative',            
+  VERY_NEGATIVE: 'very_negative',  
 };
 
 // Loại tương tác có thể có
 const INTERACTION_TYPES = {
-  RECOMMENDATION_GIVEN: 'recommendation_given',      // Đề xuất được đưa ra
-  RECOMMENDATION_ACCEPTED: 'recommendation_accepted', // Đề xuất được chấp nhận
-  RECOMMENDATION_REJECTED: 'recommendation_rejected', // Đề xuất bị từ chối
-  USER_REPORTED_SUCCESS: 'user_reported_success',    // Người dùng báo thành công
-  USER_REPORTED_FAILURE: 'user_reported_failure',    // Người dùng báo thất bại
-  USER_ASKED_FOLLOWUP: 'user_asked_followup',        // Người dùng hỏi thêm
-  USER_EXPRESSED_CONFUSION: 'user_expressed_confusion', // Người dùng bày tỏ sự bối rối
-  USER_EXPRESSED_GRATITUDE: 'user_expressed_gratitude', // Người dùng bày tỏ lòng biết ơn
+  RECOMMENDATION_GIVEN: 'recommendation_given',     
+  RECOMMENDATION_ACCEPTED: 'recommendation_accepted', 
+  RECOMMENDATION_REJECTED: 'recommendation_rejected', 
+  USER_REPORTED_SUCCESS: 'user_reported_success',   
+  USER_REPORTED_FAILURE: 'user_reported_failure',    
+  USER_ASKED_FOLLOWUP: 'user_asked_followup',       
+  USER_EXPRESSED_CONFUSION: 'user_expressed_confusion', 
+  USER_EXPRESSED_GRATITUDE: 'user_expressed_gratitude', 
 };
 
 class InteractionMemoryService {

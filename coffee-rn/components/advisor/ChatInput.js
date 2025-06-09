@@ -1,4 +1,4 @@
-// components/advisor/ChatInput.js
+
 import React, { forwardRef } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';

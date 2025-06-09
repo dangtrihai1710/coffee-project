@@ -1,5 +1,3 @@
-// utils/helpers.js
-// Các hàm tiện ích dùng trong ứng dụng
 
 // Hàm định dạng ngày giờ
 export const formatDateTime = (date) => {
@@ -18,21 +16,21 @@ export const formatDateTime = (date) => {
   export const getResultColor = (result) => {
     if (!result) return '#000';
     
-    if (result.error) return '#d9534f'; // Đỏ cho lỗi
+    if (result.error) return '#d9534f'; 
     
     if (result.predicted_label.includes("Không phải lá")) {
-      return '#d9534f'; // Đỏ cho không phải lá cà phê
+      return '#d9534f'; 
     }
     
     if (result.warning) {
-      return '#f0ad4e'; // Vàng cho cảnh báo
+      return '#f0ad4e'; 
     }
     
     if (result.predicted_label.includes("khoẻ")) {
-      return '#5cb85c'; // Xanh lá cho cây khỏe
+      return '#5cb85c'; 
     }
     
-    return '#d9534f'; // Đỏ cho cây bệnh
+    return '#d9534f'; 
   };
   
   // Lấy biểu tượng dựa trên kết quả quét
@@ -54,26 +52,26 @@ export const formatDateTime = (date) => {
     return "🩺";
   };
   
-// Sửa hàm calculateStats tại dòng 90
+
 export const calculateStats = (scanHistory) => {
   if (!scanHistory || scanHistory.length === 0) {
     return {
       totalScans: 0,
       healthyTrees: 0,
       diseasedTrees: 0,
-      notCoffeeTrees: 0, // Thêm trường mới
+      notCoffeeTrees: 0, 
       diseases: {}
     };
   }
 
   const totalScans = scanHistory.length;
   const healthyTrees = scanHistory.filter(scan => scan.result.includes('khoẻ')).length;
-  const notCoffeeTrees = scanHistory.filter(scan => scan.result.includes('Không phải lá')).length; // Thêm dòng này
-  const diseasedTrees = totalScans - healthyTrees - notCoffeeTrees; // Sửa dòng này
+  const notCoffeeTrees = scanHistory.filter(scan => scan.result.includes('Không phải lá')).length; 
+  const diseasedTrees = totalScans - healthyTrees - notCoffeeTrees; 
 
   // Thống kê các loại bệnh
   const diseases = scanHistory.reduce((acc, scan) => {
-    if(!scan.result.includes('khoẻ') && !scan.result.includes('Không phải lá')) { // Sửa điều kiện này
+    if(!scan.result.includes('khoẻ') && !scan.result.includes('Không phải lá')) { 
       // Lấy tên bệnh từ kết quả
       const diseaseName = scan.result.includes('gỉ sắt') ? 'Gỉ sắt' :
                           scan.result.includes('phoma') ? 'Phoma' :

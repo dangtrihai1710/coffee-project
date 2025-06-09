@@ -1,4 +1,4 @@
-// services/AuthService.js
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Các key lưu trữ dữ liệu xác thực
@@ -318,8 +318,8 @@ class AuthService {
         };
       }
       
-      // Trong môi trường thực tế, bạn sẽ gửi email đặt lại mật khẩu
-      // Nhưng cho demo, chỉ cần trả về thành công
+      // Trong môi trường thực tế, gửi email đặt lại mật khẩu
+      // Nhưng demo chỉ cần trả về thành công
       
       return {
         success: true,

@@ -10,7 +10,7 @@ const commonStyles = StyleSheet.create({
   },
   contentContainer: {
     padding: 15,
-    paddingBottom: 20, // Thêm padding dưới để tránh nội dung bị che khuất bởi bottom navigation
+    paddingBottom: 20, 
   },
   scrollView: {
     flex: 1,
@@ -113,7 +113,7 @@ const commonStyles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  // Style cho các tab đơn giản
+
   tabContainer: {
     flex: 1,
     padding: 15,

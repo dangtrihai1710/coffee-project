@@ -1,4 +1,4 @@
-// components/AuthWrapper.js
+
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';

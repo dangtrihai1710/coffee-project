@@ -1,4 +1,4 @@
-// components/tabs/MapTab.js
+
 import React from 'react';
 import { View } from 'react-native';
 import EmptyState from '../common/EmptyState';

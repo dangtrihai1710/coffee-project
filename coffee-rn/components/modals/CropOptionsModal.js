@@ -1,4 +1,4 @@
-// components/modals/CropOptionsModal.js
+
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';

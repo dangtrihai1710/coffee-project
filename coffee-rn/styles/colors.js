@@ -2,12 +2,10 @@
 // Định nghĩa các màu sắc dùng trong ứng dụng
 
 export const COLORS = {
-    // Màu chính
     primary: '#216520',
     primaryLight: '#e8f5e9',
     secondary: '#3949ab',
     
-    // Màu trạng thái
     success: '#5cb85c',
     successLight: '#f4fff4',
     danger: '#d9534f',
@@ -17,12 +15,10 @@ export const COLORS = {
     info: '#0275d8',
     infoLight: '#e8f4f8',
     
-    // Màu bổ sung
     gray: '#6c757d',
     grayLight: '#f5f5f5',
     grayMedium: '#eee',
     
-    // Màu cơ bản
     white: '#fff',
     black: '#000',
     text: '#333',

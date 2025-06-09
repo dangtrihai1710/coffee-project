@@ -1,4 +1,4 @@
-// components/common/LoadingIndicator.js
+
 import React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import COLORS from '../../styles/colors';

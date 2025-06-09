@@ -1,4 +1,4 @@
-// components/modals/ImagePickerModal.js
+
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
