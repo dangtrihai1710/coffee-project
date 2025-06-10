@@ -1,12 +1,58 @@
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 
 // Các key lưu trữ dữ liệu xác thực
 const STORAGE_KEYS = {
   AUTH_TOKEN: 'authToken',
   USER_DATA: 'userData',
-  USERS_LIST: 'usersList' // Thêm key mới để lưu danh sách người dùng
+  USERS_LIST: 'usersList'
 };
+
+// Lớp quản lý mã hóa mật khẩu
+class PasswordManager {
+  /**
+   * Tạo salt ngẫu nhiên
+   */
+  static generateSalt() {
+    // Tạo salt ngẫu nhiên 32 ký tự hex
+    const randomBytes = Math.random().toString(36).substring(2, 15) + 
+                       Math.random().toString(36).substring(2, 15) +
+                       Date.now().toString(36);
+    return randomBytes.substring(0, 32);
+  }
+
+  /**
+   * Mã hóa mật khẩu bằng SHA-256 với salt
+   */
+  static async hashPassword(password, salt = null) {
+    if (!salt) {
+      salt = this.generateSalt();
+    }
+    
+    // Kết hợp password và salt
+    const passwordSalt = password + salt;
+    
+    // Mã hóa bằng SHA-256 sử dụng expo-crypto
+    const hash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      passwordSalt,
+      { encoding: Crypto.CryptoEncoding.HEX }
+    );
+    
+    return {
+      hash: hash,
+      salt: salt
+    };
+  }
+
+  /**
+   * Xác minh mật khẩu
+   */
+  static async verifyPassword(password, storedHash, storedSalt) {
+    const newHashData = await this.hashPassword(password, storedSalt);
+    return newHashData.hash === storedHash;
+  }
+}
 
 class AuthService {
   static isAuthenticated = false;
@@ -79,9 +125,11 @@ class AuthService {
     return STORAGE_KEYS;
   }
 
-  // Đăng ký tài khoản mới
+  // Đăng ký tài khoản mới với mã hóa mật khẩu
   static async register(data) {
     try {
+      console.log('🔍 DEBUG: Bắt đầu đăng ký với expo-crypto');
+      
       // Lấy danh sách người dùng hiện tại
       const users = await this.getAllUsers();
       
@@ -91,13 +139,21 @@ class AuthService {
         throw new Error('Email đã được sử dụng');
       }
       
+      console.log('🔍 DEBUG: Chuẩn bị mã hóa mật khẩu...');
+      
+      // Mã hóa mật khẩu (async)
+      const passwordData = await PasswordManager.hashPassword(data.password);
+      
+      console.log('🔍 DEBUG: Mật khẩu đã được mã hóa');
+      
       // Tạo người dùng mới
       const newUser = {
         id: 'user_' + Date.now().toString(),
         fullName: data.fullName,
         email: data.email,
         phone: data.phone || '',
-        password: data.password, // Trong thực tế, mật khẩu nên được băm
+        password_hash: passwordData.hash,
+        password_salt: passwordData.salt,
         createdAt: new Date().toISOString()
       };
       
@@ -105,19 +161,31 @@ class AuthService {
       users.push(newUser);
       await this.saveAllUsers(users);
       
-      // Tạo token đơn giản
+      // Tạo token
       const token = 'token_' + newUser.id;
       
-      // Lưu thông tin đăng nhập hiện tại
+      // Lưu thông tin đăng nhập hiện tại (không bao gồm hash và salt)
+      const userForStorage = {
+        id: newUser.id,
+        fullName: newUser.fullName,
+        email: newUser.email,
+        phone: newUser.phone,
+        createdAt: newUser.createdAt
+      };
+      
       await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(newUser));
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userForStorage));
       
       this.isAuthenticated = true;
-      this.currentUser = newUser;
+      this.currentUser = userForStorage;
+      
+      console.log(`✅ Mật khẩu đã được mã hóa SHA-256 cho: ${data.email}`);
+      console.log(`📦 Hash: ${passwordData.hash.substring(0, 20)}...`);
+      console.log(`🧂 Salt: ${passwordData.salt.substring(0, 20)}...`);
       
       return {
         success: true,
-        user: newUser,
+        user: userForStorage,
         token: token
       };
     } catch (error) {
@@ -125,40 +193,8 @@ class AuthService {
       throw error;
     }
   }
-  
-  // Giả lập đăng ký (không thay đổi dữ liệu hiện có)
-  static async registerOffline(data) {
-    console.log('Đăng ký offline với dữ liệu:', data);
-    const mockUser = {
-      id: 'offline_' + Date.now().toString(),
-      fullName: data.fullName,
-      email: data.email,
-      phone: data.phone || '',
-      createdAt: new Date().toISOString(),
-      // Lưu mật khẩu để có thể kiểm tra sau này
-      password: data.password
-    };
-    
-    try {
-      // Lưu vào AsyncStorage
-      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'offline_token_' + mockUser.id);
-      
-      this.isAuthenticated = true;
-      this.currentUser = mockUser;
-      
-      return {
-        success: true,
-        user: mockUser,
-        token: 'offline_token_' + mockUser.id
-      };
-    } catch (storageError) {
-      console.error('Lỗi lưu dữ liệu đăng ký offline:', storageError);
-      throw new Error('Không thể lưu thông tin đăng ký. Vui lòng thử lại.');
-    }
-  }
 
-  // Đăng nhập
+  // Đăng nhập với xác minh mật khẩu đã mã hóa
   static async login(email, password) {
     try {
       // QUAN TRỌNG: Luôn cho phép đăng nhập với tài khoản demo
@@ -169,30 +205,48 @@ class AuthService {
       
       // Kiểm tra từ danh sách người dùng đã đăng ký
       const user = await this.findUserByEmail(email);
-      if (user) {
-        // Kiểm tra mật khẩu (trong thực tế, cần so sánh mật khẩu đã băm)
-        if (user.password === password) {
-          console.log('Đăng nhập thành công với tài khoản:', email);
-          
-          // Đánh dấu là đã đăng nhập
-          this.isAuthenticated = true;
-          this.currentUser = user;
-          
-          // Lưu thông tin đăng nhập hiện tại
-          await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'token_' + user.id);
-          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
-          
-          return {
-            success: true,
-            user: user,
-            token: 'token_' + user.id
-          };
-        } else {
-          throw new Error('Mật khẩu không đúng');
-        }
+      if (!user) {
+        throw new Error('Email không tồn tại');
       }
       
-      throw new Error('Email không tồn tại');
+      // Xác minh mật khẩu (async)
+      const isValidPassword = await PasswordManager.verifyPassword(
+        password, 
+        user.password_hash, 
+        user.password_salt
+      );
+      
+      if (!isValidPassword) {
+        throw new Error('Mật khẩu không đúng');
+      }
+      
+      console.log('✅ Đăng nhập thành công với tài khoản:', email);
+      console.log('🔐 Mật khẩu đã được xác minh qua SHA-256');
+      
+      // Đánh dấu là đã đăng nhập
+      this.isAuthenticated = true;
+      
+      // Chuẩn bị thông tin user (không bao gồm hash và salt)
+      const userForStorage = {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        createdAt: user.createdAt
+      };
+      
+      this.currentUser = userForStorage;
+      
+      // Lưu thông tin đăng nhập hiện tại
+      const token = 'token_' + user.id;
+      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userForStorage));
+      
+      return {
+        success: true,
+        user: userForStorage,
+        token: token
+      };
     } catch (error) {
       console.error('Lỗi đăng nhập:', error);
       throw error;
@@ -220,6 +274,50 @@ class AuthService {
       token: 'offline_token_12345',
       user: mockUser,
     };
+  }
+  
+  // Đổi mật khẩu
+  static async changePassword(email, oldPassword, newPassword) {
+    try {
+      const user = await this.findUserByEmail(email);
+      if (!user) {
+        throw new Error('Người dùng không tồn tại');
+      }
+      
+      // Xác minh mật khẩu cũ (async)
+      const isOldPasswordValid = await PasswordManager.verifyPassword(
+        oldPassword, 
+        user.password_hash, 
+        user.password_salt
+      );
+      
+      if (!isOldPasswordValid) {
+        throw new Error('Mật khẩu cũ không đúng');
+      }
+      
+      // Mã hóa mật khẩu mới (async)
+      const newPasswordData = await PasswordManager.hashPassword(newPassword);
+      
+      // Cập nhật mật khẩu trong danh sách users
+      const users = await this.getAllUsers();
+      const userIndex = users.findIndex(u => u.email === email);
+      
+      if (userIndex >= 0) {
+        users[userIndex].password_hash = newPasswordData.hash;
+        users[userIndex].password_salt = newPasswordData.salt;
+        await this.saveAllUsers(users);
+      }
+      
+      console.log('✅ Đã đổi mật khẩu thành công cho:', email);
+      
+      return {
+        success: true,
+        message: 'Đổi mật khẩu thành công'
+      };
+    } catch (error) {
+      console.error('Lỗi đổi mật khẩu:', error);
+      throw error;
+    }
   }
   
   // Đăng xuất
@@ -276,7 +374,12 @@ class AuthService {
       const userIndex = users.findIndex(user => user.id === currentUserData.id);
       
       if (userIndex >= 0) {
-        users[userIndex] = updatedUser;
+        // Cập nhật thông tin cơ bản (không thay đổi password_hash và password_salt)
+        users[userIndex] = {
+          ...users[userIndex],
+          fullName: updatedUser.fullName,
+          phone: updatedUser.phone
+        };
         await this.saveAllUsers(users);
       }
       
