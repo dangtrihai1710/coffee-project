@@ -1,4 +1,4 @@
-
+// components/tabs/AdvisorTab.js (Updated)
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
@@ -8,8 +8,8 @@ import {
   Alert,
   StyleSheet
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-// Import KeyboardAwareScrollView từ thư viện
+// Import SessionStorageService thay vì AsyncStorage
+import SessionStorageService from '../../services/SessionStorageService';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 // Services & Utils
@@ -18,7 +18,7 @@ import { FEEDBACK_LEVELS } from '../../services/InteractionMemoryService';
 import { createScanAnalysis } from '../../utils/advisorUtils';
 import COLORS from '../../styles/colors';
 
-// Components
+// Components (giữ nguyên import)
 import MessageBubble from '../advisor/MessageBubble';
 import LoadingBubble from '../advisor/LoadingBubble';
 import WelcomeMessage from '../advisor/WelcomeMessage';
@@ -26,9 +26,6 @@ import ChatInput from '../advisor/ChatInput';
 import ConversationList from '../advisor/ConversationList';
 import HistoryHeader from '../advisor/HistoryHeader';
 import ChatHeader from '../advisor/ChatHeader';
-
-// Lưu trữ hội thoại
-const STORAGE_KEY = 'advisor_conversations';
 
 const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   const [input, setInput] = useState('');
@@ -44,13 +41,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
   const scrollViewRef = useRef();
   const inputRef = useRef();
   
-  // Focus vào input khi cần
-  const focusInput = () => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  };
-  
   // Load hội thoại hiện tại khi ID thay đổi
   useEffect(() => {
     if (currentConversationId) {
@@ -58,23 +48,11 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }
   }, [currentConversationId]);
   
-  // Khi mở chat (không phải màn hình lịch sử)
-  useEffect(() => {
-    if (!showHistory && currentConversationId) {
-      // Đợi một chút cho UI render xong
-      setTimeout(() => {
-        if (scrollViewRef.current && scrollViewRef.current.scrollToEnd) {
-          scrollViewRef.current.scrollToEnd({ animated: false });
-        }
-      }, 500);
-    }
-  }, [showHistory, currentConversationId]);
-  
   // Load danh sách hội thoại khi mở tab
   useEffect(() => {
     loadConversations();
     
-    // Theo dõi sự kiện bàn phím
+    // Theo dõi sự kiện bàn phím (giữ nguyên)
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       (event) => {
@@ -89,37 +67,29 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       }
     );
     
-    // Dọn dẹp lắng nghe sự kiện
     return () => {
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
     };
   }, []);
   
-  // Load danh sách hội thoại từ AsyncStorage
+  // THAY ĐỔI: Sử dụng SessionStorageService
   const loadConversations = async () => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const savedConversations = JSON.parse(stored);
-        if (savedConversations.length > 0) {
-          setConversations(savedConversations);
-        }
+      const savedConversations = await SessionStorageService.getConversations();
+      if (savedConversations.length > 0) {
+        setConversations(savedConversations);
       }
     } catch (error) {
       console.error('Lỗi khi tải danh sách hội thoại:', error);
     }
   };
   
-  // Load một hội thoại cụ thể
+  // THAY ĐỔI: Sử dụng SessionStorageService
   const loadConversation = async (id) => {
     try {
-      const stored = await AsyncStorage.getItem(`${STORAGE_KEY}_${id}`);
-      if (stored) {
-        setMessages(JSON.parse(stored));
-      } else {
-        setMessages([]);
-      }
+      const messages = await SessionStorageService.getConversationMessages(id);
+      setMessages(messages || []);
       setShowHistory(false);
     } catch (error) {
       console.error('Lỗi khi tải hội thoại:', error);
@@ -127,12 +97,13 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }
   };
   
-  // Lưu hội thoại hiện tại
+  // THAY ĐỔI: Sử dụng SessionStorageService
   const saveCurrentConversation = async () => {
     if (!currentConversationId || messages.length === 0) return;
     
     try {
-      await AsyncStorage.setItem(`${STORAGE_KEY}_${currentConversationId}`, JSON.stringify(messages));
+      // Lưu tin nhắn
+      await SessionStorageService.saveConversationMessages(currentConversationId, messages);
       
       // Cập nhật danh sách hội thoại
       const updatedConversations = conversations.map(conv => {
@@ -166,52 +137,51 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       });
       
       setConversations(updatedConversations);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
+      await SessionStorageService.saveConversations(updatedConversations);
     } catch (error) {
       console.error('Lỗi khi lưu hội thoại:', error);
     }
   };
   
-  // Xóa một hội thoại
+  // THAY ĐỔI: Sử dụng SessionStorageService
   const deleteConversation = async (id) => {
     try {
-      // Xóa tin nhắn của hội thoại
-      await AsyncStorage.removeItem(`${STORAGE_KEY}_${id}`);
+      const success = await SessionStorageService.deleteConversation(id);
       
-      // Cập nhật danh sách hội thoại
-      const updatedConversations = conversations.filter(conv => conv.id !== id);
-      setConversations(updatedConversations);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
-      
-      // Nếu đang ở hội thoại bị xóa, quay lại danh sách
-      if (currentConversationId === id) {
-        setShowHistory(true);
+      if (success) {
+        // Cập nhật state local
+        const updatedConversations = conversations.filter(conv => conv.id !== id);
+        setConversations(updatedConversations);
+        
+        // Nếu đang ở hội thoại bị xóa, quay lại danh sách
+        if (currentConversationId === id) {
+          setShowHistory(true);
+        }
       }
       
-      return true;
+      return success;
     } catch (error) {
       console.error('Lỗi khi xóa hội thoại:', error);
       return false;
     }
   };
   
-  // Xóa nhiều hội thoại
+  // THAY ĐỔI: Xóa nhiều hội thoại sử dụng SessionStorageService
   const deleteMultipleConversations = async () => {
     if (selectedConversations.length === 0) return;
     
     try {
-      // Xóa tin nhắn của các hội thoại đã chọn
+      // Xóa từng hội thoại
       for (const id of selectedConversations) {
-        await AsyncStorage.removeItem(`${STORAGE_KEY}_${id}`);
+        await SessionStorageService.deleteConversation(id);
       }
       
-      // Cập nhật danh sách hội thoại
+      // Cập nhật danh sách hội thoại local
       const updatedConversations = conversations.filter(
         conv => !selectedConversations.includes(conv.id)
       );
       
       setConversations(updatedConversations);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
       
       // Nếu đang ở hội thoại bị xóa, quay lại danh sách
       if (selectedConversations.includes(currentConversationId)) {
@@ -229,7 +199,29 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }
   };
   
-  // Xử lý chọn/bỏ chọn hội thoại
+  // Tạo hội thoại mới (giữ nguyên logic)
+  const createNewConversation = () => {
+    const newId = 'conv_' + Date.now().toString();
+    const newConversation = {
+      id: newId,
+      title: 'Hội thoại mới',
+      lastMessage: 'Chưa có tin nhắn',
+      time: 'Vừa tạo'
+    };
+    
+    const updatedConversations = [newConversation, ...conversations];
+    setConversations(updatedConversations);
+    
+    // Lưu vào SessionStorage
+    SessionStorageService.saveConversations(updatedConversations)
+      .catch(error => console.error('Lỗi khi lưu danh sách hội thoại:', error));
+    
+    setCurrentConversationId(newId);
+    setMessages([]);
+    setShowHistory(false);
+  };
+  
+  // Các phương thức khác giữ nguyên logic cũ...
   const toggleSelectConversation = (id, startSelectMode = false) => {
     if (startSelectMode) {
       setIsSelectMode(true);
@@ -243,35 +235,13 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       setSelectedConversations([...selectedConversations, id]);
     }
   };
+
+  // Phần còn lại của component giữ nguyên...
+  // (handleSend, handleQuickQuestion, handleFeedback, etc...)
   
-  // Tạo hội thoại mới
-  const createNewConversation = () => {
-    const newId = 'conv_' + Date.now().toString();
-    const newConversation = {
-      id: newId,
-      title: 'Hội thoại mới',
-      lastMessage: 'Chưa có tin nhắn',
-      time: 'Vừa tạo'
-    };
-    
-    const updatedConversations = [newConversation, ...conversations];
-    setConversations(updatedConversations);
-    
-    // Lưu vào AsyncStorage
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations))
-      .catch(error => console.error('Lỗi khi lưu danh sách hội thoại:', error));
-    
-    // Đặt hội thoại hiện tại
-    setCurrentConversationId(newId);
-    setMessages([]);
-    setShowHistory(false);
-  };
-  
-  // Xử lý gửi tin nhắn
   const handleSend = async () => {
     if (!input.trim()) return;
     
-    // Thêm tin nhắn người dùng
     const userMessage = { 
       id: Date.now().toString(), 
       text: input.trim(), 
@@ -279,10 +249,8 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       timestamp: new Date().toISOString()
     };
     
-    // Tự động tạo hội thoại mới nếu chưa có
     if (!currentConversationId) {
       createNewConversation();
-      // Đợi một chút để đảm bảo hội thoại mới được tạo
       await new Promise(resolve => setTimeout(resolve, 300));
       setMessages([userMessage]);
     } else {
@@ -291,11 +259,8 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     
     setInput('');
     Keyboard.dismiss();
-    
-    // Hiển thị trạng thái đang gõ
     setIsLoading(true);
     
-    // Cuộn xuống tin nhắn mới
     setTimeout(() => {
       if (scrollViewRef.current && scrollViewRef.current.scrollToEnd) {
         scrollViewRef.current.scrollToEnd({ animated: true });
@@ -303,17 +268,14 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }, 500);
     
     try {
-      // Chuẩn bị ngữ cảnh cho agent
       const context = {
         scanHistory: scanHistory || [],
         historyStats: historyStats || {},
         previousMessages: messages
       };
       
-      // Phân tích yêu cầu người dùng
       const agentResponse = await AgentSystem.coordinateAgents(userMessage.text, context);
       
-      // Tạo tin nhắn từ AI
       const botMessage = {
         id: Date.now().toString(),
         text: agentResponse.message,
@@ -324,17 +286,14 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
         timestamp: new Date().toISOString()
       };
       
-      // Thêm tin nhắn bot
       setMessages(currentMessages => [...currentMessages, botMessage]);
       
-      // Lưu hội thoại
       setTimeout(() => {
         saveCurrentConversation();
       }, 500);
       
     } catch (error) {
       console.error('Lỗi khi xử lý tin nhắn:', error);
-      // Thêm tin nhắn lỗi
       const errorMessage = {
         id: Date.now().toString(),
         text: 'Xin lỗi, tôi gặp sự cố khi xử lý yêu cầu của bạn. Vui lòng thử lại sau.',
@@ -347,7 +306,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     } finally {
       setIsLoading(false);
       
-      // Cuộn xuống tin nhắn mới
       setTimeout(() => {
         if (scrollViewRef.current && scrollViewRef.current.scrollToEnd) {
           scrollViewRef.current.scrollToEnd({ animated: true });
@@ -355,22 +313,19 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       }, 500);
     }
   };
-  
-  // Xử lý cho các câu hỏi gợi ý
+
+  // Các method khác giữ nguyên...
   const handleQuickQuestion = (question) => {
     setInput(question);
     setTimeout(() => handleSend(), 100);
   };
   
-  // Cập nhật phản hồi về đề xuất
   const handleFeedback = async (messageId, recommendationId, feedback) => {
     if (!recommendationId) return;
     
     try {
-      // Lưu phản hồi
       await AgentSystem.saveFeedback(recommendationId, feedback);
       
-      // Cập nhật tin nhắn để hiển thị phản hồi
       const updatedMessages = messages.map(msg => {
         if (msg.id === messageId) {
           return {
@@ -383,10 +338,8 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       
       setMessages(updatedMessages);
       
-      // Lưu hội thoại
-      await AsyncStorage.setItem(`${STORAGE_KEY}_${currentConversationId}`, JSON.stringify(updatedMessages));
+      await SessionStorageService.saveConversationMessages(currentConversationId, updatedMessages);
       
-      // Thông báo
       Alert.alert('Cảm ơn bạn!', 'Phản hồi của bạn giúp tôi cải thiện đề xuất trong tương lai.');
       
     } catch (error) {
@@ -395,13 +348,11 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }
   };
   
-  // Quay lại lịch sử hội thoại
   const backToHistory = () => {
     setShowHistory(true);
     loadConversations();
   };
 
-  // Phân tích dữ liệu quét lá
   const analyzeScanData = async () => {
     if (!scanHistory || scanHistory.length === 0) {
       Alert.alert('Thông báo', 'Chưa có dữ liệu quét để phân tích. Vui lòng quét một số lá cây trước.');
@@ -427,10 +378,8 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }
   };
   
-  // Xử lý phân tích dữ liệu quét
   const handleScanDataAnalysis = async () => {
     setIsLoading(true);
-    // Cuộn xuống tin nhắn mới
     setTimeout(() => {
       if (scrollViewRef.current && scrollViewRef.current.scrollToEnd) {
         scrollViewRef.current.scrollToEnd({ animated: true });
@@ -438,10 +387,8 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }, 300);
     
     try {
-      // Sử dụng utils để tạo phân tích
       const analysisResult = createScanAnalysis(scanHistory, historyStats);
       
-      // Tạo tin nhắn phân tích
       const botMessage = {
         id: Date.now().toString(),
         text: analysisResult.message,
@@ -451,17 +398,14 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
         recommendationId: analysisResult.recommendationId
       };
       
-      // Thêm tin nhắn bot
       setMessages(currentMessages => [...currentMessages, botMessage]);
       
-      // Lưu hội thoại
       setTimeout(() => {
         saveCurrentConversation();
       }, 500);
       
     } catch (error) {
       console.error('Lỗi khi phân tích dữ liệu quét:', error);
-      // Thêm tin nhắn lỗi
       const errorMessage = {
         id: Date.now().toString(),
         text: 'Xin lỗi, tôi gặp sự cố khi phân tích dữ liệu quét. Vui lòng thử lại sau.',
@@ -474,7 +418,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     } finally {
       setIsLoading(false);
       
-      // Cuộn xuống tin nhắn mới
       setTimeout(() => {
         if (scrollViewRef.current && scrollViewRef.current.scrollToEnd) {
           scrollViewRef.current.scrollToEnd({ animated: true });
@@ -483,7 +426,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
     }
   };
 
-  // Xử lý xác nhận xóa nhiều hội thoại
   const handleDeleteSelected = () => {
     Alert.alert(
       'Xác nhận xóa',
@@ -553,7 +495,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
           />
           
           <View style={styles.chatContentContainer}>
-            {/* Sử dụng KeyboardAwareScrollView thay thế cho ScrollView */}
             <KeyboardAwareScrollView
               ref={scrollViewRef}
               style={styles.messagesContainer}
@@ -565,7 +506,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
               extraHeight={100}
               keyboardOpeningTime={0}
             >
-              {/* Welcome message if no messages */}
               {messages.length === 0 && (
                 <WelcomeMessage
                   onAnalyzeScan={analyzeScanData}
@@ -573,7 +513,6 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                 />
               )}
               
-              {/* Messages */}
               {messages.map((message) => (
                 <MessageBubble
                   key={message.id}
@@ -582,14 +521,11 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
                 />
               ))}
               
-              {/* Loading indicator */}
               {isLoading && <LoadingBubble />}
               
-              {/* Thêm khoảng trống ở dưới để tránh bị che khuất */}
               <View style={{ height: 100 }} />
             </KeyboardAwareScrollView>
             
-            {/* Input container */}
             <View style={styles.inputContainer}>
               <ChatInput
                 ref={inputRef}

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
-
+import SessionStorageService from './SessionStorageService';
 // Các key lưu trữ dữ liệu xác thực
 const STORAGE_KEYS = {
   AUTH_TOKEN: 'authToken',
@@ -321,21 +321,32 @@ class AuthService {
   }
   
   // Đăng xuất
-  static async logout() {
-    try {
-      // Xóa dữ liệu lưu trữ
-      await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      await AsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
-      
-      this.isAuthenticated = false;
-      this.currentUser = null;
-      
-      return true;
-    } catch (error) {
-      console.error('Lỗi đăng xuất:', error);
-      return false;
-    }
+static async logout() {
+  try {
+    // CHỈ XÓA DỮ LIỆU AUTH - GIỮ NGUYÊN DỮ LIỆU USER
+    await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+    await AsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
+    
+    this.isAuthenticated = false;
+    this.currentUser = null;
+    
+    console.log('✅ Đăng xuất thành công - Dữ liệu user được giữ lại');
+    return true;
+  } catch (error) {
+    console.error('Lỗi đăng xuất:', error);
+    return false;
   }
+}
+static async clearUserData() {
+  try {
+    await SessionStorageService.clearCurrentUserData();
+    console.log('✅ Đã xóa dữ liệu user hiện tại');
+    return true;
+  } catch (error) {
+    console.error('Lỗi khi xóa dữ liệu user:', error);
+    return false;
+  }
+}
   
   // Lấy token hiện tại
   static async getToken() {

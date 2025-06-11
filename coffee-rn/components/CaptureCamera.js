@@ -11,7 +11,7 @@ import {
   Text
 } from 'react-native';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
-
+import SessionStorageService from '../services/SessionStorageService';
 // Tabs
 import ScanTab from './tabs/ScanTab';
 import HistoryTab from './tabs/HistoryTab';
