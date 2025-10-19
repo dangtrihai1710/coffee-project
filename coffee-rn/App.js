@@ -1,3 +1,5 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 // App.js
 import React, { useEffect } from 'react';
 import { SafeAreaView, StyleSheet } from 'react-native';
@@ -199,9 +201,11 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <AuthWrapper />
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <AuthWrapper />
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

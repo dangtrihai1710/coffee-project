@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Text
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import SessionStorageService from '../services/SessionStorageService';
 // Tabs
@@ -40,6 +41,7 @@ const CaptureCamera = ({ onLogout }) => {
     diseases: {}
   });
   const [userName, setUserName] = useState('');
+  const insets = useSafeAreaInsets();
   
   // Lấy thông tin người dùng khi component mount
   useEffect(() => {
@@ -260,7 +262,7 @@ const updateHistoryStats = (history) => {
       </View>
       
       {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
+      <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
         <TouchableOpacity 
           style={styles.navItem} 
           onPress={() => setActiveTab('scan')}

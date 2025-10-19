@@ -6,11 +6,12 @@ import {
   Platform,
   Keyboard,
   Alert,
-  StyleSheet
+  StyleSheet,
+  KeyboardAvoidingView,
+  ScrollView
 } from 'react-native';
 // Import SessionStorageService thay vì AsyncStorage
 import SessionStorageService from '../../services/SessionStorageService';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 // Services & Utils
 import GeminiService from '../../services/GeminiService';
@@ -357,51 +358,51 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
           />
         </View>
       ) : (
-        <View style={styles.chatContainer}>
+        <KeyboardAvoidingView 
+          style={styles.chatContainer}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0} // Adjust this value as needed
+        >
           <ChatHeader
             title={conversations.find(c => c.id === currentConversationId)?.title || 'Tư vấn'}
             onBack={backToHistory}
           />
           
-          <View style={styles.chatContentContainer}>
-            <KeyboardAwareScrollView
-              ref={scrollViewRef}
-              style={styles.messagesContainer}
-              contentContainerStyle={styles.messagesContent}
-              keyboardShouldPersistTaps="handled"
-              enableOnAndroid={true}
-              enableAutomaticScroll={true}
-            >
-              {messages.length === 0 && (
-                <WelcomeMessage
-                  onAnalyzeScan={analyzeScanData}
-                />
-              )}
-              
-              {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  onGiveFeedback={handleFeedback}
-                />
-              ))}
-              
-              {isLoading && <LoadingBubble />}
-              
-              <View style={{ height: 100 }} />
-            </KeyboardAwareScrollView>
-            
-            <View style={styles.inputContainer}>
-              <ChatInput
-                ref={inputRef}
-                value={input}
-                onChangeText={setInput}
-                onSend={() => handleSend()}
-                isLoading={isLoading}
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {messages.length === 0 && (
+              <WelcomeMessage
+                onAnalyzeScan={analyzeScanData}
               />
-            </View>
+            )}
+            
+            {messages.map((message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                onGiveFeedback={handleFeedback}
+              />
+            ))}
+            
+            {isLoading && <LoadingBubble />}
+            
+            <View style={{ height: 20 }} />
+          </ScrollView>
+          
+          <View style={styles.inputContainer}>
+            <ChatInput
+              ref={inputRef}
+              value={input}
+              onChangeText={setInput}
+              onSend={() => handleSend()}
+              isLoading={isLoading}
+            />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       )}
     </View>
   );
@@ -419,12 +420,6 @@ const styles = StyleSheet.create({
   chatContainer: {
     flex: 1,
     backgroundColor: COLORS.white,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  chatContentContainer: {
-    flex: 1,
-    position: 'relative',
   },
   messagesContainer: {
     flex: 1,
@@ -438,8 +433,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.grayMedium,
-    width: '100%',
-    zIndex: 999,
+    paddingBottom: 5, // Add some padding at the bottom
+    paddingTop: 5,
   },
   bottomInfo: {
     padding: 15,
