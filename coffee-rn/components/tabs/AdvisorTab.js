@@ -360,8 +360,8 @@ const AdvisorTab = ({ scanHistory = [], historyStats = {} }) => {
       ) : (
         <KeyboardAvoidingView 
           style={styles.chatContainer}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0} // Adjust this value as needed
+          behavior="padding"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 100}
         >
           <ChatHeader
             title={conversations.find(c => c.id === currentConversationId)?.title || 'Tư vấn'}
