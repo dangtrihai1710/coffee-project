@@ -1,69 +1,82 @@
 from flask import Blueprint, request, jsonify
-import uuid
-from datetime import datetime
+from models import User
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from mongoengine.errors import NotUniqueError, ValidationError
 
 auth_bp = Blueprint('auth_bp', __name__, url_prefix='/auth')
 
-@auth_bp.route("/login", methods=["POST"])
-def login():
-    data = request.get_json()
-    
-    if data.get('email') == 'demo@example.com' and data.get('password') == 'password':
-        return jsonify({
-            "success": True,
-            "token": "demo_token_12345",
-            "user": {
-                "id": "12345",
-                "fullName": "Người Dùng Demo",
-                "email": "demo@example.com",
-                "phone": "0123456789",
-                "createdAt": datetime.now().isoformat()
-            }
-        })
-    
-    return jsonify({"success": False, "message": "Email hoặc mật khẩu không đúng"}), 401
-
-@auth_bp.route("/register", methods=["POST"])
+@auth_bp.route('/register', methods=['POST'])
 def register():
-    data = request.get_json()
-    
-    if data.get('email') == 'demo@example.com':
-        return jsonify({"success": False, "message": "Email đã được sử dụng"}), 400
-    
-    user = {
-        "id": str(uuid.uuid4()),
-        "fullName": data.get('fullName', ''),
-        "email": data.get('email', ''),
-        "phone": data.get('phone', ''),
-        "createdAt": datetime.now().isoformat()
-    }
-    
-    return jsonify({
-        "success": True,
-        "token": f"token_{user['id']}",
-        "user": user
-    })
+    try:
+        body = request.get_json()
+        
+        if not body or not body.get('email') or not body.get('password') or not body.get('fullName'):
+            return jsonify({"message": "Yêu cầu email, password và fullName"}), 400
 
-@auth_bp.route("/reset-password", methods=["POST"])
-def reset_password():
-    return jsonify({
-        "success": True,
-        "message": "Đã gửi email đặt lại mật khẩu."
-    })
+        user = User(
+            email=body.get('email'),
+            password=body.get('password'),
+            fullName=body.get('fullName')
+        )
+        
+        user.hash_password()
+        user.save()
+        
+        return jsonify({"message": "Người dùng đã đăng ký thành công"}), 201
 
-@auth_bp.route("/update-profile", methods=["PUT"])
-def update_profile():
-    data = request.get_json()
-    
-    updated_user = {
-        "id": "12345",
-        "fullName": data.get('fullName', 'Người Dùng Demo'),
-        "email": data.get('email', 'demo@example.com'),
-        "phone": data.get('phone', '0123456789'),
-        "createdAt": "2023-01-01T00:00:00"
-    }
-    
-    return jsonify({
-        "success": True,
-        "user": updated_user
-    })
+    except NotUniqueError:
+        return jsonify({"message": "Email đã tồn tại"}), 409
+    except ValidationError as e:
+        return jsonify({"message": "Lỗi xác thực", "errors": e.to_dict()}), 400
+    except Exception as e:
+        print(f"!!! UNEXPECTED ERROR IN /register: {e}")
+        print(f"!!! ERROR TYPE: {type(e)}")
+        return jsonify({"message": "Đã xảy ra lỗi", "error": str(e)}), 500
+
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    try:
+        body = request.get_json()
+        
+        if not body or not body.get('email') or not body.get('password'):
+            return jsonify({"message": "Yêu cầu email và password"}), 400
+
+        email = body.get('email')
+        password = body.get('password')
+
+        user = User.objects(email=email).first()
+
+        if not user or not user.check_password(password):
+            return jsonify({"message": "Email hoặc mật khẩu không hợp lệ"}), 401
+
+        access_token = create_access_token(identity=str(user.id))
+        
+        return jsonify(access_token=access_token), 200
+
+    except Exception as e:
+        return jsonify({"message": "Đã xảy ra lỗi", "error": str(e)}), 500
+
+
+@auth_bp.route('/profile', methods=['GET'])
+@jwt_required()
+def profile():
+    try:
+        # Lấy định danh của người dùng hiện tại từ JWT
+        current_user_id = get_jwt_identity()
+        
+        # Tìm người dùng trong database
+        user = User.objects.get(id=current_user_id)
+        
+        # Trả về thông tin công khai của người dùng (không bao gồm mật khẩu)
+        return jsonify({
+            "id": str(user.id),
+            "email": user.email,
+            "fullName": user.fullName,
+            "createdAt": user.createdAt.isoformat()
+        }), 200
+        
+    except User.DoesNotExist:
+        return jsonify({"message": "Không tìm thấy người dùng"}), 404
+    except Exception as e:
+        return jsonify({"message": "Đã xảy ra lỗi", "error": str(e)}), 500
