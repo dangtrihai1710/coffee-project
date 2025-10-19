@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import COLORS from '../../styles/colors';
 
-const WelcomeMessage = ({ onAnalyzeScan, onQuickQuestion }) => {
+const WelcomeMessage = ({ onAnalyzeScan }) => {
   return (
     <View style={styles.welcomeContainer}>
       <View style={styles.agentIconContainer}>
@@ -27,14 +27,14 @@ const WelcomeMessage = ({ onAnalyzeScan, onQuickQuestion }) => {
         <View style={styles.agentInfo}>
           <FontAwesome5 name="book-open" size={24} color={COLORS.secondary} style={styles.agentInfoIcon} />
           <View style={styles.agentInfoContent}>
-            <Text style={styles.agentInfoTitle}>Tư vấn điều trị</Text>
-            <Text style={styles.agentInfoDesc}>Đề xuất phương pháp điều trị phù hợp</Text>
+            <Text style={styles.agentInfoTitle}>Tư vấn chuyên sâu</Text>
+            <Text style={styles.agentInfoDesc}>Hỏi đáp về mọi vấn đề của cây cà phê</Text>
           </View>
         </View>
       </View>
       
       <Text style={styles.welcomeText}>
-        Bạn có thể hỏi tôi về cách xử lý bệnh hoặc yêu cầu phân tích dữ liệu từ các lá cây bạn đã quét.
+        Bắt đầu bằng cách hỏi tôi một câu hỏi, hoặc yêu cầu phân tích dữ liệu đã quét.
       </Text>
       
       <View style={styles.suggestionsContainer}>
@@ -43,20 +43,6 @@ const WelcomeMessage = ({ onAnalyzeScan, onQuickQuestion }) => {
           onPress={onAnalyzeScan}
         >
           <Text style={styles.suggestionText}>Phân tích dữ liệu quét của tôi</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.suggestionButton}
-          onPress={() => onQuickQuestion('Cách xử lý bệnh gỉ sắt')}
-        >
-          <Text style={styles.suggestionText}>Cách xử lý bệnh gỉ sắt</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.suggestionButton}
-          onPress={() => onQuickQuestion('Kỹ thuật cắt tỉa cây cà phê')}
-        >
-          <Text style={styles.suggestionText}>Kỹ thuật cắt tỉa</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -27,7 +27,9 @@
     "react-native-share": "^10.0.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.26.0"
+    "@babel/core": "^7.26.0",
+    "babel-preset-expo": "^54.0.4",
+    "react-native-dotenv": "^3.4.11"
   },
   "private": true
 }
