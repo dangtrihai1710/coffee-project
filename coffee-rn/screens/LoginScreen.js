@@ -29,10 +29,7 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
     const init = async () => {
       setIsInitializing(true);
       try {
-        // Khởi tạo API trước
-        await ApiService.initialize();
-        
-        // Kiểm tra trạng thái đăng nhập
+        // Bỏ qua ApiService, chỉ dùng AuthService để kiểm tra trạng thái đăng nhập
         const isLoggedIn = await AuthService.initialize();
         if (isLoggedIn) {
           onLoginSuccess();
@@ -412,6 +409,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 20,
+    marginBottom: 30, // Add space at the bottom
   },
   registerText: {
     color: COLORS.textSecondary,
