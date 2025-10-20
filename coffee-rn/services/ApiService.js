@@ -11,6 +11,7 @@ class ApiService {
   // Danh sách các IP thông dụng để thử kết nối
   static COMMON_IPS = [
     '192.168.100.81',
+    '10.150.1.174',
   ];
   
   // Kiểm tra một endpoint cụ thể trên server

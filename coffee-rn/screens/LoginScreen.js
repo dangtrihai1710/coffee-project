@@ -44,25 +44,7 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
     init();
   }, []);
 
-  // Xóa dữ liệu và đăng nhập demo
-  const handleClearAndLogin = async () => {
-    setIsLoading(true);
-    
-    try {
-      // Xóa toàn bộ dữ liệu trước khi đăng nhập
-      await AuthService.clearAllData();
-      
-      // Đăng nhập với tài khoản demo
-      await AuthService.loginOffline('demo@example.com');
-      
-      onLoginSuccess();
-    } catch (error) {
-      console.error('Lỗi khi xóa dữ liệu và đăng nhập:', error);
-      Alert.alert('Lỗi', 'Không thể đăng nhập. Vui lòng thử lại sau.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   const handleLogin = async () => {
     // Kiểm tra dữ liệu đầu vào
@@ -116,32 +98,7 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
     }
   };
 
-  // Demo đăng nhập nhanh để trải nghiệm ứng dụng
-  const handleDemoLogin = async () => {
-    setIsLoading(true);
-    
-    try {
-      await AuthService.login('demo@example.com', 'password');
-      onLoginSuccess();
-    } catch (error) {
-      console.error('Lỗi đăng nhập demo:', error);
-      
-      // Thử đăng nhập offline nếu có lỗi kết nối
-      if (error.message.includes('Network') || error.message.includes('timeout')) {
-        try {
-          await AuthService.loginOffline('demo@example.com');
-          onLoginSuccess();
-          return;
-        } catch (offlineError) {
-          Alert.alert('Lỗi', 'Không thể đăng nhập với tài khoản demo.');
-        }
-      } else {
-        Alert.alert('Lỗi', 'Không thể đăng nhập với tài khoản demo.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   // Hiển thị loading khi đang khởi tạo
   if (isInitializing) {
@@ -222,29 +179,7 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
               </>
             )}
           </TouchableOpacity>
-          
-          <View style={styles.orContainer}>
-            <View style={styles.orLine} />
-            <Text style={styles.orText}>hoặc</Text>
-            <View style={styles.orLine} />
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.demoButton} 
-            onPress={handleDemoLogin}
-            disabled={isLoading}
-          >
-            <FontAwesome5 name="user-check" size={16} color={COLORS.primary} />
-            <Text style={styles.demoButtonText}>Đăng nhập với tài khoản demo</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.helpButton} 
-            onPress={handleClearAndLogin}
-          >
-            <FontAwesome5 name="tools" size={16} color={COLORS.primary} />
-            <Text style={styles.helpButtonText}>Xóa dữ liệu và đăng nhập Demo</Text>
-          </TouchableOpacity>
+
         </View>
         
         <View style={styles.registerContainer}>
