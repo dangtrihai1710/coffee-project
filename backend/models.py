@@ -7,7 +7,7 @@ import datetime
 
 class User(Document):
     email = EmailField(required=True, unique=True)
-    password = StringField(required=True, min_length=6)
+    password = StringField(required=False, min_length=6)
     fullName = StringField(required=True)
     createdAt = DateTimeField(default=datetime.datetime.utcnow)
 
@@ -17,6 +17,9 @@ class User(Document):
 
     def check_password(self, password_to_check):
         """Kiểm tra xem mật khẩu được cung cấp có khớp với hash đã lưu không."""
+        # Nếu người dùng không có mật khẩu (đăng nhập qua social), trả về False
+        if not self.password:
+            return False
         return check_password_hash(self.password, password_to_check)
 
 # --- Machine Learning Models ---

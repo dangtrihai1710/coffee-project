@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AuthService from '../services/AuthService';
-import ApiService from '../services/ApiService';
 import COLORS from '../styles/colors';
 
 const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
@@ -24,12 +23,10 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
-  // Kiểm tra nếu đã đăng nhập trước đó và khởi tạo API
   useEffect(() => {
     const init = async () => {
       setIsInitializing(true);
       try {
-        // Bỏ qua ApiService, chỉ dùng AuthService để kiểm tra trạng thái đăng nhập
         const isLoggedIn = await AuthService.initialize();
         if (isLoggedIn) {
           onLoginSuccess();
@@ -44,52 +41,25 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
     init();
   }, []);
 
-
-
   const handleLogin = async () => {
-    // Kiểm tra dữ liệu đầu vào
     if (!email || !password) {
       Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ email và mật khẩu.');
       return;
     }
-    
-    // Kiểm tra định dạng email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert('Lỗi', 'Email không đúng định dạng.');
       return;
     }
-    
-    // Kiểm tra độ dài mật khẩu
     if (password.length < 6) {
       Alert.alert('Lỗi', 'Mật khẩu phải có ít nhất 6 ký tự.');
       return;
     }
     
     setIsLoading(true);
-    
     try {
-      // Thử đăng nhập bình thường
-      try {
-        await AuthService.login(email, password);
-        onLoginSuccess();
-      } catch (error) {
-        // Nếu lỗi kết nối/server nhưng là tài khoản demo
-        if (email === 'demo@example.com' && password === 'password' && 
-            (error.message.includes('Network') || error.message.includes('timeout'))) {
-          // Thử đăng nhập offline với tài khoản demo
-          await AuthService.loginOffline(email);
-          onLoginSuccess();
-          return;
-        }
-        
-        // Nếu là lỗi chung
-        if (error.message.includes('Email hoặc mật khẩu không đúng')) {
-          Alert.alert('Đăng nhập thất bại', 'Email hoặc mật khẩu không đúng. Vui lòng thử lại.');
-        } else {
-          throw error;
-        }
-      }
+      await AuthService.login(email, password);
+      onLoginSuccess();
     } catch (error) {
       console.error('Lỗi đăng nhập:', error);
       Alert.alert('Đăng nhập thất bại', error.message || 'Không thể đăng nhập. Vui lòng thử lại sau.');
@@ -98,9 +68,28 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    try {
+      const result = await AuthService.signInWithGoogle();
+      if (result && result.success) {
+        onLoginSuccess();
+      } else {
+        if (result && result.error) {
+           // Không hiển thị alert nếu người dùng chủ động hủy
+           if (!result.error.includes('hủy')) {
+             Alert.alert('Đăng nhập Google thất bại', result.error);
+           }
+        }
+      }
+    } catch (error) {
+      console.error('Lỗi đăng nhập Google:', error);
+      Alert.alert('Đăng nhập Google thất bại', error.message || 'Đã có lỗi xảy ra.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-
-  // Hiển thị loading khi đang khởi tạo
   if (isInitializing) {
     return (
       <View style={styles.loadingContainer}>
@@ -178,6 +167,21 @@ const LoginScreen = ({ onLoginSuccess, onRegister, onForgotPassword }) => {
                 <Text style={styles.loginButtonText}>Đăng nhập</Text>
               </>
             )}
+          </TouchableOpacity>
+
+          <View style={styles.orContainer}>
+            <View style={styles.orLine} />
+            <Text style={styles.orText}>HOẶC</Text>
+            <View style={styles.orLine} />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.googleButton, isLoading && styles.disabledButton]}
+            onPress={handleGoogleSignIn}
+            disabled={isLoading}
+          >
+            <FontAwesome5 name="google" size={16} color={COLORS.white} />
+            <Text style={styles.googleButtonText}>Đăng nhập với Google</Text>
           </TouchableOpacity>
 
         </View>
@@ -290,6 +294,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 10,
   },
+  googleButton: {
+    backgroundColor: '#4285F4',
+    borderRadius: 8,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  googleButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 10,
+  },
   disabledButton: {
     opacity: 0.7,
   },
@@ -307,44 +325,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
     color: COLORS.textSecondary,
   },
-  demoButton: {
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderRadius: 8,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    backgroundColor: COLORS.primaryLight,
-    marginBottom: 10,
-  },
-  demoButtonText: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 10,
-  },
-  helpButton: {
-    borderWidth: 1,
-    borderColor: COLORS.info,
-    borderRadius: 8,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    backgroundColor: COLORS.infoLight,
-  },
-  helpButtonText: {
-    color: COLORS.info,
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 10,
-  },
   registerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 20,
-    marginBottom: 30, // Add space at the bottom
+    marginBottom: 30, 
   },
   registerText: {
     color: COLORS.textSecondary,

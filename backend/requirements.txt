@@ -11,3 +11,4 @@ Flask-MongoEngine
 Flask-JWT-Extended
 Authlib
 python-dotenv
+google-auth
